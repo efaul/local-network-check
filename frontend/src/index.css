@@ -221,7 +221,7 @@ dd { margin: 5px 0 0; font-size: 19px; font-weight: 600; font-variant-numeric: t
 .signal-chart {
   display: flex;
   gap: 10px;
-  height: 150px;
+  height: 200px;
   padding: 10px;
   background: rgba(0, 0, 0, 0.25);
   border-radius: var(--radius-sm);
@@ -246,7 +246,7 @@ dd { margin: 5px 0 0; font-size: 19px; font-weight: 600; font-variant-numeric: t
 .signal-path {
   fill: none;
   stroke: var(--accent);
-  stroke-width: 1.6;
+  stroke-width: 1.2;
   stroke-linejoin: round;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
@@ -254,11 +254,18 @@ dd { margin: 5px 0 0; font-size: 19px; font-weight: 600; font-variant-numeric: t
   filter: drop-shadow(0 0 3px rgba(90, 209, 255, 0.45));
 }
 
-.signal-point { stroke: #0b0f16; stroke-width: 0.6; vector-effect: non-scaling-stroke; cursor: pointer; }
+.signal-point { stroke: #0b0f16; stroke-width: 0.6; vector-effect: non-scaling-stroke; cursor: pointer; opacity: 0; transition: opacity 0.2s ease; }
+.signal-point:hover, .signal-point[data-latest="true"], .signal-point[data-isolated="true"] { opacity: 1; }
 .signal-point[data-quality="good"] { fill: var(--ok); }
 .signal-point[data-quality="fair"] { fill: var(--warn); }
 .signal-point[data-quality="poor"] { fill: var(--bad); }
 .signal-point[data-quality="none"] { fill: var(--unknown); opacity: 0.7; }
+.signal-refresh { margin: -4px 0 14px; color: var(--muted); font-size: 12px; }
+.signal-times { display: flex; justify-content: space-between; margin: 6px 10px 0 70px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .signal-point { transition: none; }
+}
 
 .legend { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 12px; color: var(--muted); }
 .key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-left: 8px; }

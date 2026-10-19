@@ -1,6 +1,7 @@
 import type { WifiSampleDto } from '../types';
 import { bandOf } from '../band';
 import { timeOf } from '../format';
+import { signalPath } from '../signalPath';
 
 // -60 dBm or stronger is a solid connection, -75 dBm is usable but marginal,
 // anything weaker is poor — common Wi-Fi signal quality conventions.
@@ -37,9 +38,11 @@ export function SignalChart({ wifiSamples }: { wifiSamples: readonly WifiSampleD
   }
 
   const ordered = [...wifiSamples].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const start = Date.parse(ordered[0].at);
+  const duration = Date.parse(ordered[ordered.length - 1].at) - start;
 
-  const points: Point[] = ordered.map((sample, i) => {
-    const x = ordered.length === 1 ? CHART_WIDTH / 2 : (i / (ordered.length - 1)) * CHART_WIDTH;
+  const points: Point[] = ordered.map((sample) => {
+    const x = duration === 0 ? CHART_WIDTH / 2 : ((Date.parse(sample.at) - start) / duration) * CHART_WIDTH;
     if (!sample.connected || sample.signalDbm === null || !Number.isFinite(sample.signalDbm)) {
       return { x, y: CHART_HEIGHT, quality: 'none', sample };
     }
@@ -50,20 +53,12 @@ export function SignalChart({ wifiSamples }: { wifiSamples: readonly WifiSampleD
 
   // Line connects consecutive connected readings; a disconnected sample
   // breaks the line rather than dragging it down to the floor.
-  let d = '';
-  let drawing = false;
-  for (const p of points) {
-    if (p.quality === 'none') {
-      drawing = false;
-      continue;
-    }
-    d += `${drawing ? 'L' : 'M'}${p.x.toFixed(2)},${p.y.toFixed(2)} `;
-    drawing = true;
-  }
+  const d = signalPath(points.map((p) => p.quality === 'none' ? null : p));
 
   const ticks = signalAxisTicks();
 
   return (
+    <>
     <div className="signal-chart">
       <div className="signal-axis">
         {ticks.map((tick) => (
@@ -78,7 +73,7 @@ export function SignalChart({ wifiSamples }: { wifiSamples: readonly WifiSampleD
             <div key={tick.dbm} className="signal-gridline" style={{ top: `${tick.percent}%` }} />
           ))}
         </div>
-        <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" className="signal-line">
+        <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" className="signal-line" role="img" aria-label="Wi-Fi signal strength over time, from −90 to −30 dBm">
           <path className="signal-path" d={d.trim()} />
           {points.map((p, i) => {
             const when = timeOf(p.sample.at);
@@ -101,6 +96,8 @@ export function SignalChart({ wifiSamples }: { wifiSamples: readonly WifiSampleD
                 r="1.6"
                 className="signal-point"
                 data-quality={p.quality}
+                data-latest={i === points.length - 1}
+                data-isolated={(i === 0 || points[i - 1].quality === 'none') && (i === points.length - 1 || points[i + 1].quality === 'none')}
               >
                 <title>{title}</title>
               </circle>
@@ -109,5 +106,7 @@ export function SignalChart({ wifiSamples }: { wifiSamples: readonly WifiSampleD
         </svg>
       </div>
     </div>
+    <div className="signal-times"><span>{timeOf(ordered[0].at)}</span><span>{timeOf(ordered[ordered.length - 1].at)}</span></div>
+    </>
   );
 }

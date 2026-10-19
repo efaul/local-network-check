@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import type { RoomDayDetailDocument, RoomHoursDocument } from '../types';
-import { STATUS_TEXT, ms, pct } from '../format';
+import { STATUS_TEXT, ms, pct, timeOf } from '../format';
 import { bandOf } from '../band';
 import { HourHeatmap } from './HourHeatmap';
 import { SignalChart } from './SignalChart';
@@ -12,6 +12,7 @@ export function RoomDetailView({ location }: { location: string }) {
   const [hoursDoc, setHoursDoc] = useState<RoomHoursDocument | null>(null);
   const [dayDoc, setDayDoc] = useState<RoomDayDetailDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState(false);
 
   useEffect(() => {
     setDates(null);
@@ -40,20 +41,33 @@ export function RoomDetailView({ location }: { location: string }) {
   useEffect(() => {
     if (date === null) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
     setHoursDoc(null);
     setDayDoc(null);
-    void (async () => {
+    setError(null);
+    setRefreshError(false);
+    const refresh = async () => {
       try {
         const [hours, day] = await Promise.all([api.roomHours(location, date), api.roomDay(location, date)]);
         if (cancelled) return;
         setHoursDoc(hours);
         setDayDoc(day);
+        setError(null);
+        setRefreshError(false);
       } catch {
-        if (!cancelled) setError('Could not load this day.');
+        if (!cancelled) {
+          setError('Could not refresh this day. Retrying automatically…');
+          setRefreshError(true);
+        }
+      } finally {
+        // Schedule after completion so slower requests never overlap.
+        if (!cancelled) timer = setTimeout(() => { void refresh(); }, 2000);
       }
-    })();
+    };
+    void refresh();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [location, date]);
 
@@ -101,7 +115,7 @@ export function RoomDetailView({ location }: { location: string }) {
           </section>
 
           {hoursDoc === null || dayDoc === null ? (
-            <p className="muted">Loading…</p>
+            <p className="muted">{error ?? 'Loading…'}</p>
           ) : (
             <>
               <section className="panel">
@@ -111,9 +125,13 @@ export function RoomDetailView({ location }: { location: string }) {
 
               <section className="panel">
                 <h2>Wi-Fi signal strength</h2>
+                <p className="signal-refresh" role="status">
+                  {refreshError ? error : 'Auto-refreshing every 2 seconds · new readings appear when the probe reports.'}
+                  {dayDoc.wifiSamples.length > 0 && ` Last reading: ${timeOf(dayDoc.wifiSamples[dayDoc.wifiSamples.length - 1].at)} (Europe/Amsterdam).`}
+                </p>
                 <SignalChart wifiSamples={dayDoc.wifiSamples} />
                 <p className="legend">
-                  <span className="key key-good" /> good (≥ −60 dBm) <span className="key key-fair" /> fair{' '}
+                  <span className="key key-fair" /> fair{' '}
                   <span className="key key-poor" /> poor <span className="key key-none" /> disconnected
                 </p>
               </section>
