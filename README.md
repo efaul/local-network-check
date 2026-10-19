@@ -44,7 +44,7 @@ Configure it in `config/server.json`:
   "target": { "address": "192.168.86.1", "label": "Primary router" },
   "probe": { "intervalMs": 5000, "timeoutMs": 1000 },
   "window": { "minutes": 15 },
-  "server": { "host": "127.0.0.1", "port": 8787 },
+  "server": { "host": "0.0.0.0", "port": 8787 },
   "db": { "path": "./data/central.sqlite" }
 }
 ```
