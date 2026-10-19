@@ -136,21 +136,31 @@ of whichever day they were last visited.
 ## Structure
 
 ```
-src/shared/   result, pingProbe, scheduler, summary — used by both roles
+src/shared/   result, pingProbe, scheduler, summary, band — used by server and probe
 src/server/   config, db, ingest, aggregate, httpServer, backboneRunner, index
 src/probe/    config, wifiProbe, forwarder, index
-src/web/      app.ts, compiled to public/app.js (npm run build)
+frontend/     React + Vite dashboard — source of what's built into public/
 config/       server.json, probe.json
 ```
 
 ## Develop
 
 ```bash
-npm test          # type check, then all unit tests
+npm test               # type check (server/probe), then all unit tests
 npm run typecheck
 npm run test:unit
-npm run build      # recompile the browser dashboard script
+npm run build           # build the React dashboard into public/
+npm run dev:frontend    # Vite dev server for the dashboard, with hot reload
 ```
+
+The dashboard (`frontend/`) is a separate Vite + React + TypeScript project.
+`npm run build` (run from the repo root, or `npm run build` inside
+`frontend/`) compiles it straight into `public/`, which the central server
+serves as static files — so `public/` is a build artifact, not something to
+edit by hand. For local development, run the central server in one terminal
+and `npm run dev:frontend` in another: the Vite dev server proxies `/api/*`
+to `http://localhost:8787` (override with `VITE_BACKEND`) and gives you hot
+reload on port 5173.
 
 ## Known limitations (by design, for this slice)
 

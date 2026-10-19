@@ -62,31 +62,32 @@ test('GET /api/state reflects a sample already in the database', async () => {
   });
 });
 
-test('serves static files and rejects path traversal', async () => {
+test('serves static files, falls back to index.html for the SPA router, and rejects path traversal', async () => {
   await withServer(async (baseUrl) => {
     assert.equal((await fetch(`${baseUrl}/`)).status, 200);
-    assert.equal((await fetch(`${baseUrl}/style.css`)).status, 200);
-    assert.equal((await fetch(`${baseUrl}/app.js`)).status, 200);
-    assert.equal((await fetch(`${baseUrl}/band.js`)).status, 200);
+    assert.equal((await fetch(`${baseUrl}/index.html`)).status, 200);
+    // A hash-routed path like /rooms isn't a real server route — the SPA
+    // shell handles navigation client-side, so unknown non-asset paths
+    // should still resolve to index.html rather than 404ing.
+    assert.equal((await fetch(`${baseUrl}/rooms`)).status, 200);
     assert.equal((await fetch(`${baseUrl}/../package.json`)).status, 404);
-    assert.equal((await fetch(`${baseUrl}/does-not-exist`)).status, 404);
+    assert.equal((await fetch(`${baseUrl}/does-not-exist.js`)).status, 404);
   });
 });
 
-test('every compiled .js file in public/ is actually servable', async () => {
-  // Regression test: adding a new browser module (e.g. band.ts -> band.js)
-  // and forgetting to add it to the server's static-file allow-list is a
-  // silent, fatal bug in the browser - an ES module import 404ing breaks the
-  // whole dashboard, not just the new feature. This enumerates the real
-  // build output so that failure mode can't recur unnoticed.
-  const files = await readdir(publicDir);
-  const jsFiles = files.filter((name) => name.endsWith('.js'));
-  assert.ok(jsFiles.length > 0, 'expected at least one compiled .js file in public/');
+test('every compiled asset in public/assets is actually servable', async () => {
+  // Regression test: the Vite build emits content-hashed JS/CSS under
+  // public/assets/ — if the static handler's path resolution regresses,
+  // an asset 404ing silently breaks the whole dashboard. This enumerates
+  // the real build output so that failure mode can't recur unnoticed.
+  const assetsDir = join(publicDir, 'assets');
+  const files = await readdir(assetsDir);
+  assert.ok(files.length > 0, 'expected at least one built asset in public/assets (run `npm run build` first)');
 
   await withServer(async (baseUrl) => {
-    for (const file of jsFiles) {
-      const response = await fetch(`${baseUrl}/${file}`);
-      assert.equal(response.status, 200, `/${file} should be servable but returned ${response.status}`);
+    for (const file of files) {
+      const response = await fetch(`${baseUrl}/assets/${file}`);
+      assert.equal(response.status, 200, `/assets/${file} should be servable but returned ${response.status}`);
     }
   });
 });

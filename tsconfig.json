@@ -22,6 +22,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/shared/**/*.ts", "src/server/**/*.ts", "src/probe/**/*.ts", "test/**/*.ts"],
-  "exclude": ["src/web/**/*.ts"]
+  "include": ["src/shared/**/*.ts", "src/server/**/*.ts", "src/probe/**/*.ts", "test/**/*.ts"]
 }

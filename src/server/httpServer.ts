@@ -6,7 +6,7 @@
 import { createServer as createHttpServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { extname, join, normalize, sep } from 'node:path';
 import type { ServerConfig } from './config.ts';
 import type { Db } from './db.ts';
 import { recentSamplesForDevice, lastSampleForDevice } from './db.ts';
@@ -18,18 +18,47 @@ import type { BackboneStateDocument } from '../shared/contract.js';
 const RECENT_LIMIT = 300;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
-interface StaticEntry {
-  readonly file: string;
-  readonly type: string;
+/**
+ * Static assets come from the React dashboard's Vite build (`frontend/`,
+ * compiled to `public/`), whose JS/CSS chunk names are content-hashed and
+ * therefore not known ahead of time. Serve anything under `publicDir`
+ * instead of a fixed allowlist, falling back to `index.html` for unknown
+ * paths so the client-side (hash) router owns navigation.
+ */
+const CONTENT_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+function contentTypeFor(path: string): string {
+  return CONTENT_TYPES[extname(path).toLowerCase()] ?? 'application/octet-stream';
 }
 
-const STATIC_FILES = new Map<string, StaticEntry>([
-  ['/', { file: 'index.html', type: 'text/html; charset=utf-8' }],
-  ['/index.html', { file: 'index.html', type: 'text/html; charset=utf-8' }],
-  ['/app.js', { file: 'app.js', type: 'text/javascript; charset=utf-8' }],
-  ['/band.js', { file: 'band.js', type: 'text/javascript; charset=utf-8' }],
-  ['/style.css', { file: 'style.css', type: 'text/css; charset=utf-8' }],
-]);
+async function resolveStaticFile(publicDir: string, pathname: string): Promise<{ body: Buffer; type: string } | null> {
+  const relative = pathname === '/' || pathname === '' ? 'index.html' : pathname.replace(/^\/+/, '');
+  const full = normalize(join(publicDir, relative));
+  const root = normalize(publicDir) + sep;
+  if (!full.startsWith(root)) return null;
+
+  try {
+    return { body: await readFile(full), type: contentTypeFor(full) };
+  } catch {
+    if (extname(relative) !== '') return null; // a missing asset is a 404, not the SPA shell
+    try {
+      return { body: await readFile(join(publicDir, 'index.html')), type: 'text/html; charset=utf-8' };
+    } catch {
+      return null;
+    }
+  }
+}
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   const body = JSON.stringify(payload);
@@ -165,19 +194,18 @@ async function handleRequest(
       return;
     }
 
-    const entry = STATIC_FILES.get(path);
-    if (entry === undefined) {
+    const asset = await resolveStaticFile(publicDir, path);
+    if (asset === null) {
       sendJson(res, 404, { error: 'not-found' });
       return;
     }
 
-    const fileBody = await readFile(join(publicDir, entry.file));
     res.writeHead(200, {
-      'content-type': entry.type,
-      'content-length': fileBody.length,
+      'content-type': asset.type,
+      'content-length': asset.body.length,
       'cache-control': 'no-store',
     });
-    res.end(method === 'HEAD' ? undefined : fileBody);
+    res.end(method === 'HEAD' ? undefined : asset.body);
   } catch (err) {
     if (err instanceof IngestError) {
       sendJson(res, 400, { error: 'invalid-request', detail: err.message });
