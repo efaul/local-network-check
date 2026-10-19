@@ -27,6 +27,7 @@ const STATIC_FILES = new Map<string, StaticEntry>([
   ['/', { file: 'index.html', type: 'text/html; charset=utf-8' }],
   ['/index.html', { file: 'index.html', type: 'text/html; charset=utf-8' }],
   ['/app.js', { file: 'app.js', type: 'text/javascript; charset=utf-8' }],
+  ['/band.js', { file: 'band.js', type: 'text/javascript; charset=utf-8' }],
   ['/style.css', { file: 'style.css', type: 'text/css; charset=utf-8' }],
 ]);
 

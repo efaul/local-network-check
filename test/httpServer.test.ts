@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readdir } from 'node:fs/promises';
 import { createServer } from '../src/server/httpServer.ts';
 import { openDb, insertSample } from '../src/server/db.ts';
 import type { ServerConfig } from '../src/server/config.ts';
@@ -66,8 +67,27 @@ test('serves static files and rejects path traversal', async () => {
     assert.equal((await fetch(`${baseUrl}/`)).status, 200);
     assert.equal((await fetch(`${baseUrl}/style.css`)).status, 200);
     assert.equal((await fetch(`${baseUrl}/app.js`)).status, 200);
+    assert.equal((await fetch(`${baseUrl}/band.js`)).status, 200);
     assert.equal((await fetch(`${baseUrl}/../package.json`)).status, 404);
     assert.equal((await fetch(`${baseUrl}/does-not-exist`)).status, 404);
+  });
+});
+
+test('every compiled .js file in public/ is actually servable', async () => {
+  // Regression test: adding a new browser module (e.g. band.ts -> band.js)
+  // and forgetting to add it to the server's static-file allow-list is a
+  // silent, fatal bug in the browser - an ES module import 404ing breaks the
+  // whole dashboard, not just the new feature. This enumerates the real
+  // build output so that failure mode can't recur unnoticed.
+  const files = await readdir(publicDir);
+  const jsFiles = files.filter((name) => name.endsWith('.js'));
+  assert.ok(jsFiles.length > 0, 'expected at least one compiled .js file in public/');
+
+  await withServer(async (baseUrl) => {
+    for (const file of jsFiles) {
+      const response = await fetch(`${baseUrl}/${file}`);
+      assert.equal(response.status, 200, `/${file} should be servable but returned ${response.status}`);
+    }
   });
 });
 
