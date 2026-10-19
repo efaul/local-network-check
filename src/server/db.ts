@@ -14,6 +14,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { ProbeState, Result } from '../shared/result.ts';
 import type { WifiSampleDto } from '../shared/contract.js';
+import { localDateOf, localDayRange } from '../shared/timezone.ts';
 
 export interface Db {
   readonly raw: DatabaseSync;
@@ -161,10 +162,10 @@ export function distinctLocations(db: Db): string[] {
 }
 
 export function datesForLocation(db: Db, location: string): string[] {
-  const stmt = db.raw.prepare(
-    `SELECT DISTINCT substr(at, 1, 10) AS day FROM samples WHERE location = ? ORDER BY day DESC`,
-  );
-  return (stmt.all(location) as unknown as Array<{ day: string }>).map((row) => row.day);
+  const stmt = db.raw.prepare('SELECT at FROM samples WHERE location = ?');
+  const rows = stmt.all(location) as unknown as Array<{ at: string }>;
+  const days = new Set(rows.map((row) => localDateOf(row.at)));
+  return [...days].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
 }
 
 export function latestDateForLocation(db: Db, location: string): string | null {
@@ -179,11 +180,9 @@ export function lastSampleForLocation(db: Db, location: string): Result | null {
   return row ? rowToResult(row) : null;
 }
 
-/** [startIso, endIso) covering one UTC calendar day. */
+/** [startIso, endIso) covering one calendar day in the display timezone. */
 function dayRange(date: string): [string, string] {
-  const start = new Date(`${date}T00:00:00.000Z`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  return [start.toISOString(), end.toISOString()];
+  return localDayRange(date);
 }
 
 export function samplesForLocationAndDate(db: Db, location: string, date: string): Result[] {

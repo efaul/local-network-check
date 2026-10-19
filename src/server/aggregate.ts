@@ -17,6 +17,7 @@ import {
 } from './db.ts';
 import type { Db } from './db.ts';
 import { summarise, summariseByHour, deriveStatus, deriveBucketStatus } from '../shared/summary.ts';
+import { localDateOf } from '../shared/timezone.ts';
 import type {
   HourBucketDto,
   RoomDayDetailDocument,
@@ -47,7 +48,7 @@ export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryD
 
       return {
         location,
-        latestDate: last ? last.at.slice(0, 10) : null,
+        latestDate: last ? localDateOf(last.at) : null,
         status,
         statusReason: reason,
         lastSeenAt: last?.at ?? null,

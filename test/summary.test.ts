@@ -95,7 +95,9 @@ test('bucket status is degraded, not down, for partial loss', () => {
   assert.equal(deriveBucketStatus(summarise(results)).status, 'degraded');
 });
 
-test('summariseByHour buckets by UTC hour and leaves empty hours unknown', () => {
+test('summariseByHour buckets by Europe/Amsterdam hour and leaves empty hours unknown', () => {
+  // 2026-06-01 is CEST (UTC+2): 00:05/00:50 UTC land in local hour 2,
+  // and 23:10 UTC rolls into local hour 1 the next day.
   const day = '2026-06-01';
   const results = [
     ok(10, `${day}T00:05:00.000Z`),
@@ -105,14 +107,15 @@ test('summariseByHour buckets by UTC hour and leaves empty hours unknown', () =>
 
   const buckets = summariseByHour(results);
   assert.equal(buckets.length, 24);
-  assert.equal(buckets[0]?.summary.total, 2);
-  assert.equal(buckets[0]?.status.status, 'ok');
-  assert.equal(buckets[23]?.status.status, 'down');
+  assert.equal(buckets[2]?.summary.total, 2);
+  assert.equal(buckets[2]?.status.status, 'ok');
+  assert.equal(buckets[1]?.status.status, 'down');
   assert.equal(buckets[12]?.status.status, 'unknown');
 });
 
-test('hourOf and dayOf read the sample timestamp, not the system clock', () => {
-  assert.equal(hourOf(ok(1, '2026-06-01T14:30:00.000Z')), 14);
+test('hourOf and dayOf read the sample timestamp in Europe/Amsterdam, not the system clock', () => {
+  // 14:30 UTC on 2026-06-01 (CEST, UTC+2) is 16:30 local, same calendar day.
+  assert.equal(hourOf(ok(1, '2026-06-01T14:30:00.000Z')), 16);
   assert.equal(dayOf(ok(1, '2026-06-01T14:30:00.000Z')), '2026-06-01');
 });
 

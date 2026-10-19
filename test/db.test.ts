@@ -47,20 +47,22 @@ test('distinctLocations reflects every device that has reported', async () => {
   assert.deepEqual(distinctLocations(db), ['Backbone', 'Kitchen']);
 });
 
-test('datesForLocation groups by calendar day, newest first', async () => {
+test('datesForLocation groups by calendar day (Europe/Amsterdam), newest first', async () => {
   const db = await freshDb();
-  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-01T23:00:00.000Z') });
-  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-02T01:00:00.000Z') });
+  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-01T10:00:00.000Z') });
+  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-02T10:00:00.000Z') });
 
   assert.deepEqual(datesForLocation(db, 'Kitchen'), ['2026-06-02', '2026-06-01']);
   assert.equal(latestDateForLocation(db, 'Kitchen'), '2026-06-02');
   assert.equal(latestDateForLocation(db, 'Nowhere'), null);
 });
 
-test('samplesForLocationAndDate respects the UTC day boundary', async () => {
+test('samplesForLocationAndDate respects the Europe/Amsterdam day boundary', async () => {
   const db = await freshDb();
-  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-01T23:59:59.999Z') });
-  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-02T00:00:00.000Z') });
+  // CEST is UTC+2: 21:59:59.999Z is 23:59:59.999 local (still 06-01),
+  // and 22:00:00.000Z is 00:00:00 local the next day (06-02).
+  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-01T21:59:59.999Z') });
+  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-01T22:00:00.000Z') });
 
   assert.equal(samplesForLocationAndDate(db, 'Kitchen', '2026-06-01').length, 1);
   assert.equal(samplesForLocationAndDate(db, 'Kitchen', '2026-06-02').length, 1);

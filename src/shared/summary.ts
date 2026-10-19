@@ -10,6 +10,7 @@
 
 import { STATE } from './result.ts';
 import type { ProbeState, Result } from './result.ts';
+import { localDateOf, localHourOf } from './timezone.ts';
 
 export type StateCounts = Record<ProbeState, number>;
 
@@ -172,12 +173,12 @@ export function deriveBucketStatus(summary: Summary): StatusInfo {
   return { status: 'ok', reason: 'Replies arrived normally during this period.' };
 }
 
-/** Hour-of-day (0-23) bucket, derived from the result's own timestamp (UTC). */
+/** Hour-of-day (0-23) bucket, derived from the result's own timestamp, in {@link DISPLAY_TIMEZONE}. */
 export function hourOf(result: Result): number {
-  return new Date(result.at).getUTCHours();
+  return localHourOf(result.at);
 }
 
-/** Groups results into 24 hour-of-day buckets (UTC) and summarises each. */
+/** Groups results into 24 hour-of-day buckets ({@link DISPLAY_TIMEZONE}) and summarises each. */
 export function summariseByHour(results: readonly Result[]): Array<{ hour: number; summary: Summary; status: StatusInfo }> {
   const buckets: Result[][] = Array.from({ length: 24 }, () => []);
   for (const result of results) {
@@ -190,15 +191,15 @@ export function summariseByHour(results: readonly Result[]): Array<{ hour: numbe
   });
 }
 
-/** YYYY-MM-DD (UTC) for grouping results into calendar days. */
+/** YYYY-MM-DD for grouping results into calendar days, in {@link DISPLAY_TIMEZONE}. */
 export function dayOf(result: Result): string {
-  return result.at.slice(0, 10);
+  return localDateOf(result.at);
 }
 
 const DATE_FORMAT_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * True only for a real calendar date in strict YYYY-MM-DD form (UTC).
+ * True only for a real calendar date in strict YYYY-MM-DD form.
  *
  * `Date.parse` alone is not enough: it accepts loose forms like "2026-6-1",
  * and it silently normalises an invalid date like "2026-02-30" into

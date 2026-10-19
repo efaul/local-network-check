@@ -14,15 +14,16 @@ async function seededDb(): Promise<Db> {
   // Backbone: live, currently healthy.
   insertSample(db, { deviceId: 'backbone-1', location: 'Backbone', result: ok(new Date().toISOString()) });
 
-  // Kitchen: one historical day, hour 0 healthy, hour 23 fully down.
-  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-01T00:05:00.000Z') });
-  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-06-01T00:50:00.000Z') });
-  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: timeout('2026-06-01T23:10:00.000Z') });
-  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: timeout('2026-06-01T23:20:00.000Z') });
+  // Kitchen: one historical day (2026-06-01, Europe/Amsterdam / CEST = UTC+2),
+  // hour 0 healthy, hour 23 fully down.
+  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-05-31T22:05:00.000Z') });
+  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: ok('2026-05-31T22:50:00.000Z') });
+  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: timeout('2026-06-01T21:10:00.000Z') });
+  insertSample(db, { deviceId: 'pi-1', location: 'Kitchen', result: timeout('2026-06-01T21:20:00.000Z') });
   insertWifiSample(db, {
     deviceId: 'pi-1',
     location: 'Kitchen',
-    sample: { at: '2026-06-01T00:05:00.000Z', connected: true, bssid: 'aa:bb:cc:dd:ee:ff', ssid: 'Home', signalDbm: -50, freqMhz: 5180, reason: null },
+    sample: { at: '2026-05-31T22:05:00.000Z', connected: true, bssid: 'aa:bb:cc:dd:ee:ff', ssid: 'Home', signalDbm: -50, freqMhz: 5180, reason: null },
   });
 
   return db;

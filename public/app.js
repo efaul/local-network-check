@@ -3,6 +3,8 @@
  * with a date picker. Hash-routed, no framework. Compiled to public/app.js.
  */
 import { bandOf } from './band.js';
+/** Must match {@link DISPLAY_TIMEZONE} in ../shared/timezone.ts (kept local so the web bundle's rootDir stays self-contained). */
+const DISPLAY_TIMEZONE = 'Europe/Amsterdam';
 const STATUS_TEXT = {
     ok: 'OK',
     degraded: 'Degraded',
@@ -67,7 +69,7 @@ function renderBackboneChart(container, recent) {
     const peak = rtts.length > 0 ? Math.max(...rtts) : 1;
     for (const result of recent) {
         const height = result.rttMs !== null ? Math.max(6, Math.round((result.rttMs / peak) * 100)) : 100;
-        const when = new Date(result.at).toLocaleTimeString();
+        const when = new Date(result.at).toLocaleTimeString('en-GB', { timeZone: DISPLAY_TIMEZONE });
         const title = result.rttMs !== null
             ? `${when} — ${result.rttMs.toFixed(1)} ms`
             : `${when} — ${result.state}${result.reason !== null ? `: ${result.reason}` : ''}`;
@@ -214,7 +216,7 @@ function renderDayBody(body, hoursDoc, dayDoc) {
         return el('span', { className: 'point-chip' }, [label]);
     });
     body.replaceChildren(el('section', { className: 'panel' }, [
-        el('h2', {}, ['Hour of day (UTC)']),
+        el('h2', {}, ['Hour of day (Europe/Amsterdam)']),
         el('div', { className: 'hour-grid' }, hoursDoc.hours.map(hourCell)),
         el('div', { className: 'hour-labels' }, hourLabels),
     ]), el('section', { className: 'panel' }, [
