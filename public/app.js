@@ -2,6 +2,7 @@
  * Dashboard: backbone live view, room heatmap overview, and per-room detail
  * with a date picker. Hash-routed, no framework. Compiled to public/app.js.
  */
+import { bandOf } from './band.js';
 const STATUS_TEXT = {
     ok: 'OK',
     degraded: 'Degraded',
@@ -205,9 +206,13 @@ function renderDayBody(body, hoursDoc, dayDoc) {
     const points = new Map();
     for (const sample of dayDoc.wifiSamples) {
         if (sample.connected && sample.bssid !== null)
-            points.set(sample.bssid, sample.ssid);
+            points.set(sample.bssid, { ssid: sample.ssid, freqMhz: sample.freqMhz });
     }
-    const pointChips = [...points.entries()].map(([bssid, ssid]) => el('span', { className: 'point-chip' }, [ssid !== null ? `${ssid} (${bssid})` : bssid]));
+    const pointChips = [...points.entries()].map(([bssid, info]) => {
+        const band = bandOf(info.freqMhz);
+        const label = [info.ssid ?? bssid, `(${bssid})`, band !== null ? `· ${band}` : null].filter((part) => part !== null).join(' ');
+        return el('span', { className: 'point-chip' }, [label]);
+    });
     body.replaceChildren(el('section', { className: 'panel' }, [
         el('h2', {}, ['Hour of day (UTC)']),
         el('div', { className: 'hour-grid' }, hoursDoc.hours.map(hourCell)),
@@ -256,4 +261,3 @@ window.addEventListener('hashchange', () => { void route(); });
 if (window.location.hash === '')
     window.location.hash = '#/backbone';
 void route();
-export {};

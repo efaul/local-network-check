@@ -14,6 +14,7 @@ import type {
   RoomsListDocument,
   StatusName,
 } from '../shared/contract.js';
+import { bandOf } from './band.js';
 
 const STATUS_TEXT: Record<StatusName, string> = {
   ok: 'OK',
@@ -256,12 +257,15 @@ function renderDayBody(body: HTMLElement, hoursDoc: RoomHoursDocument, dayDoc: R
   const hourLabels = Array.from({ length: 24 }, (_, hour) =>
     el('span', {}, [hour % 3 === 0 ? String(hour).padStart(2, '0') : '']));
 
-  const points = new Map<string, string | null>();
+  const points = new Map<string, { ssid: string | null; freqMhz: number | null }>();
   for (const sample of dayDoc.wifiSamples) {
-    if (sample.connected && sample.bssid !== null) points.set(sample.bssid, sample.ssid);
+    if (sample.connected && sample.bssid !== null) points.set(sample.bssid, { ssid: sample.ssid, freqMhz: sample.freqMhz });
   }
-  const pointChips = [...points.entries()].map(([bssid, ssid]) =>
-    el('span', { className: 'point-chip' }, [ssid !== null ? `${ssid} (${bssid})` : bssid]));
+  const pointChips = [...points.entries()].map(([bssid, info]) => {
+    const band = bandOf(info.freqMhz);
+    const label = [info.ssid ?? bssid, `(${bssid})`, band !== null ? `· ${band}` : null].filter((part) => part !== null).join(' ');
+    return el('span', { className: 'point-chip' }, [label]);
+  });
 
   body.replaceChildren(
     el('section', { className: 'panel' }, [
