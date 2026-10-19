@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bandOf } from '../src/web/band.ts';
+import { bandOf } from '../src/shared/band.ts';
 
 test('2.4 GHz channels (1-14) map to 2.4 GHz', () => {
   assert.equal(bandOf(2412), '2.4 GHz'); // channel 1

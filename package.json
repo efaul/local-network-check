@@ -10,8 +10,9 @@
   "scripts": {
     "server": "node src/server/index.ts",
     "probe": "node src/probe/index.ts",
-    "build": "tsc -p tsconfig.web.json",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.web.json --noEmit",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "npm run typecheck && node --test \"test/*.test.ts\"",
     "test:unit": "node --test \"test/*.test.ts\""
   },
