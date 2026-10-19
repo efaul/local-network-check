@@ -189,6 +189,15 @@ function svgEl(tag, attrs = {}) {
 }
 const CHART_WIDTH = 1000;
 const CHART_HEIGHT = 100;
+/** Evenly spaced dBm tick marks from ceiling to floor, with their vertical position as a 0-100% fraction down the plot. */
+function signalAxisTicks() {
+    const steps = 4;
+    const stepDbm = (SIGNAL_CEILING_DBM - SIGNAL_FLOOR_DBM) / steps;
+    return Array.from({ length: steps + 1 }, (_, i) => {
+        const dbm = SIGNAL_CEILING_DBM - i * stepDbm;
+        return { dbm, percent: (i / steps) * 100 };
+    });
+}
 function renderSignalChart(container, wifiSamples) {
     container.replaceChildren();
     if (wifiSamples.length === 0) {
@@ -248,7 +257,11 @@ function renderSignalChart(container, wifiSamples) {
         circle.append(titleEl);
         svg.append(circle);
     }
-    container.append(svg);
+    const ticks = signalAxisTicks();
+    const axis = el('div', { className: 'signal-axis' }, ticks.map((tick) => el('span', { className: 'signal-tick', style: `top:${tick.percent}%` }, [`${tick.dbm} dBm`])));
+    const gridlines = el('div', { className: 'signal-gridlines' }, ticks.map((tick) => el('div', { className: 'signal-gridline', style: `top:${tick.percent}%` })));
+    const plot = el('div', { className: 'signal-plot' }, [gridlines, svg]);
+    container.append(axis, plot);
 }
 async function renderRoomDetail(container, location) {
     container.replaceChildren(el('a', { className: 'back-link', href: '#/rooms' }, ['← All rooms']), el('h1', {}, [location]));
