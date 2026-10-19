@@ -13,6 +13,7 @@ import type {
   RoomSummaryDto,
   RoomsListDocument,
   StatusName,
+  WifiSampleDto,
 } from '../shared/contract.js';
 import { bandOf } from './band.js';
 
@@ -210,6 +211,116 @@ function hourCell(bucket: HourBucketDto): HTMLElement {
   return el('div', { className: 'hour-cell', 'data-status': bucket.status, title });
 }
 
+// Thresholds follow common Wi-Fi signal quality conventions: -60 dBm or
+// stronger is a solid connection, -75 dBm is usable but marginal, anything
+// weaker is poor.
+const SIGNAL_FLOOR_DBM = -90;
+const SIGNAL_CEILING_DBM = -30;
+
+function signalQuality(dbm: number): 'good' | 'fair' | 'poor' {
+  if (dbm >= -60) return 'good';
+  if (dbm >= -75) return 'fair';
+  return 'poor';
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgEl<K extends keyof SVGElementTagNameMap>(
+  tag: K,
+  attrs: Record<string, string> = {},
+): SVGElementTagNameMap[K] {
+  const node = document.createElementNS(SVG_NS, tag) as SVGElementTagNameMap[K];
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+  return node;
+}
+
+const CHART_WIDTH = 1000;
+const CHART_HEIGHT = 100;
+
+/** Evenly spaced dBm tick marks from ceiling to floor, with their vertical position as a 0-100% fraction down the plot. */
+function signalAxisTicks(): Array<{ dbm: number; percent: number }> {
+  const steps = 4;
+  const stepDbm = (SIGNAL_CEILING_DBM - SIGNAL_FLOOR_DBM) / steps;
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const dbm = SIGNAL_CEILING_DBM - i * stepDbm;
+    return { dbm, percent: (i / steps) * 100 };
+  });
+}
+
+function renderSignalChart(container: HTMLElement, wifiSamples: readonly WifiSampleDto[]): void {
+  container.replaceChildren();
+  if (wifiSamples.length === 0) {
+    container.append(el('p', { className: 'muted' }, ['No Wi-Fi samples recorded for this day.']));
+    return;
+  }
+
+  const ordered = [...wifiSamples].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+
+  const points = ordered.map((sample, i) => {
+    const x = ordered.length === 1 ? CHART_WIDTH / 2 : (i / (ordered.length - 1)) * CHART_WIDTH;
+    if (!sample.connected || sample.signalDbm === null || !Number.isFinite(sample.signalDbm)) {
+      return { x, y: CHART_HEIGHT, quality: 'none' as const, sample };
+    }
+    const clamped = Math.min(SIGNAL_CEILING_DBM, Math.max(SIGNAL_FLOOR_DBM, sample.signalDbm));
+    const fraction = (clamped - SIGNAL_FLOOR_DBM) / (SIGNAL_CEILING_DBM - SIGNAL_FLOOR_DBM);
+    const y = CHART_HEIGHT - fraction * CHART_HEIGHT;
+    return { x, y, quality: signalQuality(sample.signalDbm), sample };
+  });
+
+  // Line connects consecutive connected readings; a disconnected sample
+  // breaks the line rather than dragging it down to the floor.
+  let d = '';
+  let drawing = false;
+  for (const p of points) {
+    if (p.quality === 'none') {
+      drawing = false;
+      continue;
+    }
+    d += `${drawing ? 'L' : 'M'}${p.x.toFixed(2)},${p.y.toFixed(2)} `;
+    drawing = true;
+  }
+
+  const svg = svgEl('svg', {
+    viewBox: `0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`,
+    preserveAspectRatio: 'none',
+    class: 'signal-line',
+  });
+  svg.append(svgEl('path', { class: 'signal-path', d: d.trim() }));
+
+  for (const p of points) {
+    const when = new Date(p.sample.at).toLocaleTimeString('en-GB', { timeZone: DISPLAY_TIMEZONE });
+    let title: string;
+    if (p.quality === 'none') {
+      const reason = p.sample.reason !== null ? `: ${p.sample.reason}` : '';
+      title = `${when} — not connected${reason}`;
+    } else {
+      const band = bandOf(p.sample.freqMhz);
+      const label = [p.sample.ssid ?? p.sample.bssid, band !== null ? `· ${band}` : null].filter((part) => part !== null).join(' ');
+      title = `${when} — ${(p.sample.signalDbm as number).toFixed(0)} dBm${label ? ` · ${label}` : ''}`;
+    }
+    const circle = svgEl('circle', {
+      cx: p.x.toFixed(2),
+      cy: p.y.toFixed(2),
+      r: '1.6',
+      class: 'signal-point',
+      'data-quality': p.quality,
+    });
+    const titleEl = svgEl('title');
+    titleEl.textContent = title;
+    circle.append(titleEl);
+    svg.append(circle);
+  }
+
+  const ticks = signalAxisTicks();
+  const axis = el('div', { className: 'signal-axis' }, ticks.map((tick) =>
+    el('span', { className: 'signal-tick', style: `top:${tick.percent}%` }, [`${tick.dbm} dBm`])));
+  const gridlines = el('div', { className: 'signal-gridlines' }, ticks.map((tick) =>
+    el('div', { className: 'signal-gridline', style: `top:${tick.percent}%` })));
+  const plot = el('div', { className: 'signal-plot' }, [gridlines, svg]);
+
+  container.append(axis, plot);
+}
+
 async function renderRoomDetail(container: HTMLElement, location: string): Promise<void> {
   container.replaceChildren(
     el('a', { className: 'back-link', href: '#/rooms' }, ['← All rooms']),
@@ -277,6 +388,16 @@ function renderDayBody(body: HTMLElement, hoursDoc: RoomHoursDocument, dayDoc: R
       el('div', { className: 'hour-labels' }, hourLabels),
     ]),
     el('section', { className: 'panel' }, [
+      el('h2', {}, ['Wi-Fi signal strength']),
+      el('div', { className: 'signal-chart', id: 'signal-chart' }),
+      el('p', { className: 'legend' }, [
+        el('span', { className: 'key key-good' }), ' good (≥ −60 dBm) ',
+        el('span', { className: 'key key-fair' }), ' fair ',
+        el('span', { className: 'key key-poor' }), ' poor ',
+        el('span', { className: 'key key-none' }), ' disconnected',
+      ]),
+    ]),
+    el('section', { className: 'panel' }, [
       el('h2', {}, ['Day summary']),
       el('dl', { className: 'stats' }, [
         el('div', {}, [el('dt', {}, ['Status']), el('dd', {}, [STATUS_TEXT[dayDoc.summary.status]])]),
@@ -290,6 +411,9 @@ function renderDayBody(body: HTMLElement, hoursDoc: RoomHoursDocument, dayDoc: R
         : el('p', { className: 'muted' }, ['No Wi-Fi association data recorded for this day.']),
     ]),
   );
+
+  const signalChart = body.querySelector('#signal-chart');
+  if (signalChart instanceof HTMLElement) renderSignalChart(signalChart, dayDoc.wifiSamples);
 }
 
 // ------------------------------------------------------------------ router
