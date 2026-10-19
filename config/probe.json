@@ -1,0 +1,16 @@
+{
+  "serverUrl": "http://127.0.0.1:8787",
+  "deviceId": "survey-pi-1",
+  "probe": {
+    "intervalMs": 5000,
+    "timeoutMs": 1000
+  },
+  "wifi": {
+    "iface": "wlan0",
+    "intervalMs": 30000
+  },
+  "forward": {
+    "flushIntervalMs": 10000,
+    "maxQueueSize": 5000
+  }
+}
