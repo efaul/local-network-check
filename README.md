@@ -19,8 +19,10 @@ full background and design rationale.
 
 ## Requirements
 
-- Node.js 22.13+ (runs TypeScript directly via built-in type stripping; also
-  uses the built-in `node:sqlite` module)
+- Node.js 24 LTS (runs TypeScript directly via built-in type stripping; uses
+  the built-in `node:sqlite` module, which reaches Release Candidate
+  stability on this line — no more `ExperimentalWarning` at startup).
+  `.nvmrc` and `.tool-versions` pin this for `nvm`/`fnm`/`mise`/`asdf`.
 - A `ping` binary (standard on macOS and Linux)
 - On the survey probe only: Linux with `iw` (standard on Raspberry Pi OS,
   Ubuntu, etc.) — this is why the probe is Linux, not macOS: `iw` exposes
