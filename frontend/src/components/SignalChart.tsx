@@ -1,5 +1,6 @@
 import type { WifiSampleDto } from '../types';
 import { bandOf } from '../band';
+import { signalQuality } from '../signal';
 import { timeOf } from '../format';
 import { signalPath } from '../signalPath';
 
@@ -9,12 +10,6 @@ const SIGNAL_FLOOR_DBM = -90;
 const SIGNAL_CEILING_DBM = -30;
 const CHART_WIDTH = 1000;
 const CHART_HEIGHT = 100;
-
-function signalQuality(dbm: number): 'good' | 'fair' | 'poor' {
-  if (dbm >= -60) return 'good';
-  if (dbm >= -75) return 'fair';
-  return 'poor';
-}
 
 function signalAxisTicks(): Array<{ dbm: number; percent: number }> {
   const steps = 4;

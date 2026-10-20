@@ -65,6 +65,16 @@ export interface RoomSummaryDto {
   readonly statusReason: string;
   readonly lastSeenAt: string | null;
   readonly isBackbone: boolean;
+  readonly latestBssid: string | null;
+  readonly latestSsid: string | null;
+  readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
+  readonly signalDbm: number | null;
+  readonly seenAps: readonly {
+    readonly bssid: string;
+    readonly ssid: string | null;
+    readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
+    readonly lastSeenAt: string;
+  }[];
 }
 
 export interface RoomsListDocument {

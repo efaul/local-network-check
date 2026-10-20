@@ -201,3 +201,57 @@ export function wifiSamplesForLocationAndDate(db: Db, location: string, date: st
   );
   return (stmt.all(location, start, end) as unknown as WifiRow[]).map(rowToWifiSample);
 }
+
+/**
+ * The most recent sample where this location was actually connected to an
+ * AP, ignoring any later disconnected blip. A trailing disconnect sample
+ * must not null out a real, recent AP association.
+ */
+export function lastConnectedWifiSampleForLocation(db: Db, location: string): WifiSampleDto | null {
+  const stmt = db.raw.prepare(
+    `SELECT at, connected, bssid, ssid, signal_dbm, freq_mhz, reason
+       FROM wifi_samples
+       WHERE location = ? AND connected = 1 AND bssid IS NOT NULL
+       ORDER BY at DESC LIMIT 1`,
+  );
+  const row = stmt.get(location) as unknown as WifiRow | undefined;
+  return row ? rowToWifiSample(row) : null;
+}
+
+export interface SeenApDto {
+  readonly bssid: string;
+  readonly ssid: string | null;
+  readonly freqMhz: number | null;
+  readonly lastSeenAt: string;
+}
+
+interface SeenApRow {
+  bssid: string;
+  ssid: string | null;
+  freq_mhz: number | null;
+  last_at: string;
+}
+
+/**
+ * Every distinct AP this location has ever actually connected to (current
+ * and historical), most recently seen first. One row per BSSID, using that
+ * AP's most recent sighting for its SSID/frequency - an AP's SSID or channel
+ * can in principle change between sightings, and the latest sighting is the
+ * most honest single snapshot to report per AP.
+ */
+export function distinctConnectedApsForLocation(db: Db, location: string): SeenApDto[] {
+  const stmt = db.raw.prepare(
+    `SELECT bssid, ssid, freq_mhz, MAX(at) AS last_at
+       FROM wifi_samples
+       WHERE location = ? AND connected = 1 AND bssid IS NOT NULL
+       GROUP BY bssid
+       ORDER BY last_at DESC`,
+  );
+  const rows = stmt.all(location) as unknown as SeenApRow[];
+  return rows.map((row) => ({
+    bssid: row.bssid,
+    ssid: row.ssid,
+    freqMhz: row.freq_mhz,
+    lastSeenAt: row.last_at,
+  }));
+}
