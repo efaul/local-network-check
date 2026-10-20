@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { openDb, insertSample, insertWifiSample, recentSamplesForDevice, lastSampleForDevice, distinctLocations, datesForLocation, latestDateForLocation, lastSampleForLocation, samplesForLocationAndDate, wifiSamplesForLocationAndDate } from '../src/server/db.ts';
+import { openDb, insertSample, insertWifiSample, recentSamplesForDevice, lastSampleForDevice, distinctLocations, datesForLocation, latestDateForLocation, lastSampleForLocation, samplesForLocationAndDate, wifiSamplesForLocationAndDate, lastConnectedWifiSampleForLocation } from '../src/server/db.ts';
 import type { Db } from '../src/server/db.ts';
 import type { Result } from '../src/shared/result.ts';
 import type { WifiSampleDto } from '../src/shared/contract.js';
@@ -95,4 +95,24 @@ test('wifi samples round-trip with nullable fields intact', async () => {
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.connected, false);
   assert.equal(rows[0]?.bssid, null);
+});
+
+test('lastConnectedWifiSampleForLocation ignores a trailing disconnect and returns the last real AP association', async () => {
+  const db = await freshDb();
+  insertWifiSample(db, {
+    deviceId: 'pi-1',
+    location: 'Kitchen',
+    sample: { at: '2026-06-01T10:00:00.000Z', connected: true, bssid: 'aa:bb:cc:dd:ee:ff', ssid: 'Home', signalDbm: -55, freqMhz: 5180, reason: null },
+  });
+  insertWifiSample(db, {
+    deviceId: 'pi-1',
+    location: 'Kitchen',
+    sample: { at: '2026-06-01T11:00:00.000Z', connected: false, bssid: null, ssid: null, signalDbm: null, freqMhz: null, reason: 'roaming' },
+  });
+
+  const latest = lastConnectedWifiSampleForLocation(db, 'Kitchen');
+  assert.equal(latest?.bssid, 'aa:bb:cc:dd:ee:ff');
+  assert.equal(latest?.ssid, 'Home');
+  assert.equal(latest?.signalDbm, -55);
+  assert.equal(lastConnectedWifiSampleForLocation(db, 'Nowhere'), null);
 });

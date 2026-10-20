@@ -157,8 +157,37 @@ async function mountBackbone(): Promise<void> {
 
 // -------------------------------------------------------------------- rooms
 
+// Thresholds follow common Wi-Fi signal quality conventions: -60 dBm or
+// stronger is a solid connection, -75 dBm is usable but marginal, anything
+// weaker is poor.
+const SIGNAL_FLOOR_DBM = -90;
+const SIGNAL_CEILING_DBM = -30;
+
+function signalQuality(dbm: number): 'good' | 'fair' | 'poor' {
+  if (dbm >= -60) return 'good';
+  if (dbm >= -75) return 'fair';
+  return 'poor';
+}
+
 function roomLink(location: string): string {
   return `#/rooms/${encodeURIComponent(location)}`;
+}
+
+function roomWifiCell(room: RoomSummaryDto): HTMLElement {
+  if (room.latestBssid === null) {
+    return el('div', { className: 'room-wifi' }, [el('span', { className: 'muted' }, ['No Wi-Fi data'])]);
+  }
+
+  const quality = room.signalDbm !== null ? signalQuality(room.signalDbm) : 'none';
+  const apLabel = room.latestSsid ?? room.latestBssid;
+  const signalLabel = room.signalDbm !== null ? `${room.signalDbm.toFixed(0)} dBm` : '—';
+
+  return el('div', { className: 'room-wifi' }, [
+    el('span', { className: `key key-${quality}` }),
+    el('span', { className: 'point-chip' }, [apLabel]),
+    room.band !== null ? el('span', { className: 'point-chip' }, [room.band]) : '',
+    el('span', { className: 'muted' }, [signalLabel]),
+  ]);
 }
 
 function renderRoomsList(container: HTMLElement, rooms: readonly RoomSummaryDto[]): void {
@@ -177,6 +206,7 @@ function renderRoomsList(container: HTMLElement, rooms: readonly RoomSummaryDto[
         el('div', { className: 'room-meta' }, [
           room.isBackbone ? 'Continuous backbone reference' : `Last surveyed: ${timeAgoFromIso(room.lastSeenAt)}`,
         ]),
+        roomWifiCell(room),
       ]),
       el('span', { className: 'badge' }, [STATUS_TEXT[room.status]]),
     ]),
@@ -209,18 +239,6 @@ function hourCell(bucket: HourBucketDto): HTMLElement {
     : `${String(bucket.hour).padStart(2, '0')}:00 — ${STATUS_TEXT[bucket.status]}. ${bucket.statusReason} `
       + `Median ${ms(bucket.latency.medianMs)}, loss ${pct(bucket.lossRatio)}.`;
   return el('div', { className: 'hour-cell', 'data-status': bucket.status, title });
-}
-
-// Thresholds follow common Wi-Fi signal quality conventions: -60 dBm or
-// stronger is a solid connection, -75 dBm is usable but marginal, anything
-// weaker is poor.
-const SIGNAL_FLOOR_DBM = -90;
-const SIGNAL_CEILING_DBM = -30;
-
-function signalQuality(dbm: number): 'good' | 'fair' | 'poor' {
-  if (dbm >= -60) return 'good';
-  if (dbm >= -75) return 'fair';
-  return 'poor';
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';

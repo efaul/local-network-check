@@ -80,6 +80,11 @@ export interface RoomSummaryDto {
   readonly statusReason: string;
   readonly lastSeenAt: string | null;
   readonly isBackbone: boolean;
+  /** Most recent AP this room was seen connected to. Null when no Wi-Fi association has ever been recorded here. */
+  readonly latestBssid: string | null;
+  readonly latestSsid: string | null;
+  readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
+  readonly signalDbm: number | null;
 }
 
 export interface RoomsListDocument {
