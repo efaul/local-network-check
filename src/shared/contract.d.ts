@@ -85,6 +85,13 @@ export interface RoomSummaryDto {
   readonly latestSsid: string | null;
   readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
   readonly signalDbm: number | null;
+  /** Every distinct AP this room has ever connected to (current and historical), most recent first. */
+  readonly seenAps: readonly {
+    readonly bssid: string;
+    readonly ssid: string | null;
+    readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
+    readonly lastSeenAt: string;
+  }[];
 }
 
 export interface RoomsListDocument {

@@ -22,13 +22,31 @@ function RoomWifiCell({ room }: { room: RoomSummaryDto }) {
   const quality = room.signalDbm !== null ? signalQuality(room.signalDbm) : 'none';
   const apLabel = room.latestSsid ?? room.latestBssid;
   const signalLabel = room.signalDbm !== null ? `${room.signalDbm.toFixed(0)} dBm` : '—';
+  const priorAps = room.seenAps.filter((ap) => ap.bssid !== room.latestBssid);
 
   return (
     <div className="room-wifi">
-      <span className={`key key-${quality}`} />
-      <span className="point-chip">{apLabel}</span>
-      {room.band !== null ? <span className="point-chip">{room.band}</span> : null}
-      <span className="muted">{signalLabel}</span>
+      <div>
+        <span className={`key key-${quality}`} />
+        <span className="point-chip">{apLabel}</span>
+        {room.band !== null ? <span className="point-chip">{room.band}</span> : null}
+        <span className="muted">{signalLabel}</span>
+      </div>
+      {priorAps.length > 0 ? (
+        <div className="room-wifi-history">
+          <span className="muted">Also connected to: </span>
+          {priorAps.map((ap) => {
+            const label = [ap.ssid ?? ap.bssid, `(${ap.bssid})`, ap.band !== null ? `· ${ap.band}` : null]
+              .filter((part) => part !== null)
+              .join(' ');
+            return (
+              <span key={ap.bssid} className="point-chip" title={`Last seen ${ap.lastSeenAt}`}>
+                {label}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

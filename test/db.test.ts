@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { openDb, insertSample, insertWifiSample, recentSamplesForDevice, lastSampleForDevice, distinctLocations, datesForLocation, latestDateForLocation, lastSampleForLocation, samplesForLocationAndDate, wifiSamplesForLocationAndDate, lastConnectedWifiSampleForLocation } from '../src/server/db.ts';
+import { openDb, insertSample, insertWifiSample, recentSamplesForDevice, lastSampleForDevice, distinctLocations, datesForLocation, latestDateForLocation, lastSampleForLocation, samplesForLocationAndDate, wifiSamplesForLocationAndDate, lastConnectedWifiSampleForLocation, distinctConnectedApsForLocation } from '../src/server/db.ts';
 import type { Db } from '../src/server/db.ts';
 import type { Result } from '../src/shared/result.ts';
 import type { WifiSampleDto } from '../src/shared/contract.js';
@@ -115,4 +115,37 @@ test('lastConnectedWifiSampleForLocation ignores a trailing disconnect and retur
   assert.equal(latest?.ssid, 'Home');
   assert.equal(latest?.signalDbm, -55);
   assert.equal(lastConnectedWifiSampleForLocation(db, 'Nowhere'), null);
+});
+
+test('distinctConnectedApsForLocation groups by BSSID, newest sighting first, ignoring disconnects', async () => {
+  const db = await freshDb();
+  // Roamed from ap-1 to ap-2, then back to ap-1, plus a disconnect blip that
+  // must not appear as a third "AP".
+  insertWifiSample(db, {
+    deviceId: 'pi-1',
+    location: 'Kitchen',
+    sample: { at: '2026-06-01T08:00:00.000Z', connected: true, bssid: 'ap-1', ssid: 'Home', signalDbm: -60, freqMhz: 2437, reason: null },
+  });
+  insertWifiSample(db, {
+    deviceId: 'pi-1',
+    location: 'Kitchen',
+    sample: { at: '2026-06-01T09:00:00.000Z', connected: true, bssid: 'ap-2', ssid: 'Home', signalDbm: -50, freqMhz: 5180, reason: null },
+  });
+  insertWifiSample(db, {
+    deviceId: 'pi-1',
+    location: 'Kitchen',
+    sample: { at: '2026-06-01T10:00:00.000Z', connected: false, bssid: null, ssid: null, signalDbm: null, freqMhz: null, reason: 'roaming' },
+  });
+  insertWifiSample(db, {
+    deviceId: 'pi-1',
+    location: 'Kitchen',
+    sample: { at: '2026-06-01T11:00:00.000Z', connected: true, bssid: 'ap-1', ssid: 'Home', signalDbm: -62, freqMhz: 2437, reason: null },
+  });
+
+  const aps = distinctConnectedApsForLocation(db, 'Kitchen');
+  assert.equal(aps.length, 2, 'one entry per distinct BSSID, not per sample');
+  assert.equal(aps[0]?.bssid, 'ap-1', 'most recently seen AP (11:00) ranks first');
+  assert.equal(aps[0]?.lastSeenAt, '2026-06-01T11:00:00.000Z');
+  assert.equal(aps[1]?.bssid, 'ap-2');
+  assert.deepEqual(distinctConnectedApsForLocation(db, 'Nowhere'), []);
 });

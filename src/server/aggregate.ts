@@ -12,6 +12,7 @@ import {
   latestDateForLocation,
   datesForLocation,
   lastConnectedWifiSampleForLocation,
+  distinctConnectedApsForLocation,
   recentSamplesForDevice,
   samplesForLocationAndDate,
   wifiSamplesForLocationAndDate,
@@ -46,6 +47,12 @@ export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryD
       latestSsid: latestWifi?.ssid ?? null,
       band: bandOf(latestWifi?.freqMhz ?? null),
       signalDbm: latestWifi?.signalDbm ?? null,
+      seenAps: distinctConnectedApsForLocation(db, location).map((ap) => ({
+        bssid: ap.bssid,
+        ssid: ap.ssid,
+        band: bandOf(ap.freqMhz),
+        lastSeenAt: ap.lastSeenAt,
+      })),
     };
 
     if (isBackbone) {

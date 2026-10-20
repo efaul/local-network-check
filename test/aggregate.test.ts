@@ -49,6 +49,10 @@ test('getRoomsList marks the backbone location and gives it a live status', asyn
   assert.equal(kitchen?.latestSsid, 'Home');
   assert.equal(kitchen?.band, '5 GHz');
   assert.equal(kitchen?.signalDbm, -50);
+  assert.equal(kitchen?.seenAps.length, 1);
+  assert.equal(kitchen?.seenAps[0]?.bssid, 'aa:bb:cc:dd:ee:ff');
+  assert.equal(kitchen?.seenAps[0]?.band, '5 GHz');
+  assert.deepEqual(backbone?.seenAps, [], 'backbone has no survey wifi samples');
 });
 
 test('getHoursForDay buckets correctly and leaves untouched hours unknown', async () => {
