@@ -2,11 +2,35 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { RoomSummaryDto } from '../types';
 import { timeAgoFromIso } from '../format';
+import { signalQuality } from '../signal';
 import { roomLink } from '../router';
 import { StatusBadge } from './StatusBadge';
 
 function roomCountLabel(n: number): string {
   return n === 1 ? '1 location' : `${n} locations`;
+}
+
+function RoomWifiCell({ room }: { room: RoomSummaryDto }) {
+  if (room.latestBssid === null) {
+    return (
+      <div className="room-wifi">
+        <span className="muted">No Wi-Fi data</span>
+      </div>
+    );
+  }
+
+  const quality = room.signalDbm !== null ? signalQuality(room.signalDbm) : 'none';
+  const apLabel = room.latestSsid ?? room.latestBssid;
+  const signalLabel = room.signalDbm !== null ? `${room.signalDbm.toFixed(0)} dBm` : '—';
+
+  return (
+    <div className="room-wifi">
+      <span className={`key key-${quality}`} />
+      <span className="point-chip">{apLabel}</span>
+      {room.band !== null ? <span className="point-chip">{room.band}</span> : null}
+      <span className="muted">{signalLabel}</span>
+    </div>
+  );
 }
 
 export function RoomsView() {
@@ -54,6 +78,7 @@ export function RoomsView() {
               <div className="room-meta">
                 {room.isBackbone ? 'Continuous backbone reference' : `Last surveyed: ${timeAgoFromIso(room.lastSeenAt)}`}
               </div>
+              <RoomWifiCell room={room} />
             </div>
             <StatusBadge status={room.status} />
           </a>

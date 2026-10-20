@@ -293,6 +293,15 @@ dd { margin: 5px 0 0; font-size: 19px; font-weight: 600; font-variant-numeric: t
 .room-row .room-name { font-weight: 600; font-size: 15.5px; }
 .room-row .room-meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
 
+.room-wifi {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.room-wifi .key { flex: 0 0 auto; }
+
 /* ------------------------------------------------------------------- hour */
 
 .hour-grid { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }

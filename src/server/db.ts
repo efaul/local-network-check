@@ -201,3 +201,19 @@ export function wifiSamplesForLocationAndDate(db: Db, location: string, date: st
   );
   return (stmt.all(location, start, end) as unknown as WifiRow[]).map(rowToWifiSample);
 }
+
+/**
+ * The most recent sample where this location was actually connected to an
+ * AP, ignoring any later disconnected blip. A trailing disconnect sample
+ * must not null out a real, recent AP association.
+ */
+export function lastConnectedWifiSampleForLocation(db: Db, location: string): WifiSampleDto | null {
+  const stmt = db.raw.prepare(
+    `SELECT at, connected, bssid, ssid, signal_dbm, freq_mhz, reason
+       FROM wifi_samples
+       WHERE location = ? AND connected = 1 AND bssid IS NOT NULL
+       ORDER BY at DESC LIMIT 1`,
+  );
+  const row = stmt.get(location) as unknown as WifiRow | undefined;
+  return row ? rowToWifiSample(row) : null;
+}

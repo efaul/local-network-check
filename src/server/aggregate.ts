@@ -11,6 +11,7 @@ import {
   lastSampleForLocation,
   latestDateForLocation,
   datesForLocation,
+  lastConnectedWifiSampleForLocation,
   recentSamplesForDevice,
   samplesForLocationAndDate,
   wifiSamplesForLocationAndDate,
@@ -18,6 +19,7 @@ import {
 import type { Db } from './db.ts';
 import { summarise, summariseByHour, deriveStatus, deriveBucketStatus } from '../shared/summary.ts';
 import { localDateOf } from '../shared/timezone.ts';
+import { bandOf } from '../shared/band.ts';
 import type {
   HourBucketDto,
   RoomDayDetailDocument,
@@ -38,6 +40,13 @@ export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryD
 
   return locations.map((location) => {
     const isBackbone = location === options.backboneLocation;
+    const latestWifi = lastConnectedWifiSampleForLocation(db, location);
+    const wifiFields = {
+      latestBssid: latestWifi?.bssid ?? null,
+      latestSsid: latestWifi?.ssid ?? null,
+      band: bandOf(latestWifi?.freqMhz ?? null),
+      signalDbm: latestWifi?.signalDbm ?? null,
+    };
 
     if (isBackbone) {
       const since = new Date(Date.now() - options.windowMs).toISOString();
@@ -53,6 +62,7 @@ export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryD
         statusReason: reason,
         lastSeenAt: last?.at ?? null,
         isBackbone: true,
+        ...wifiFields,
       };
     }
 
@@ -69,6 +79,7 @@ export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryD
       statusReason: reason,
       lastSeenAt: last?.at ?? null,
       isBackbone: false,
+      ...wifiFields,
     };
   });
 }
