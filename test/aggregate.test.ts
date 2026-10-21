@@ -40,6 +40,7 @@ test('getRoomsList marks the backbone location and gives it a live status', asyn
   assert.equal(backbone?.status, 'ok');
   assert.equal(backbone?.latestBssid, null, 'backbone has no survey wifi samples');
   assert.equal(backbone?.band, null);
+  assert.equal(backbone?.channel, null);
 
   assert.equal(kitchen?.isBackbone, false);
   // Kitchen's latest (only) day has 2 ok + 2 timeout = 50% loss -> degraded.
@@ -48,6 +49,7 @@ test('getRoomsList marks the backbone location and gives it a live status', asyn
   assert.equal(kitchen?.latestBssid, 'aa:bb:cc:dd:ee:ff');
   assert.equal(kitchen?.latestSsid, 'Home');
   assert.equal(kitchen?.band, '5 GHz');
+  assert.equal(kitchen?.channel, 36, 'freqMhz 5180 is channel 36');
   assert.equal(kitchen?.signalDbm, -50);
   assert.equal(kitchen?.seenAps.length, 1);
   assert.equal(kitchen?.seenAps[0]?.bssid, 'aa:bb:cc:dd:ee:ff');

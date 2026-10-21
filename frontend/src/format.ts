@@ -36,3 +36,12 @@ export function timeAgoFromIso(iso: string | null): string {
 export function timeOf(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-GB', { timeZone: DISPLAY_TIMEZONE });
 }
+
+/** Absolute date + time, e.g. "21 Oct, 07:49:41" - for places a relative "X ago" isn't precise enough. */
+export function dateTimeOf(iso: string | null): string {
+  if (iso === null) return '—';
+  const date = new Date(iso);
+  const datePart = date.toLocaleDateString('en-GB', { timeZone: DISPLAY_TIMEZONE, day: 'numeric', month: 'short' });
+  const timePart = date.toLocaleTimeString('en-GB', { timeZone: DISPLAY_TIMEZONE });
+  return `${datePart}, ${timePart}`;
+}

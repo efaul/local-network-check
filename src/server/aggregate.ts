@@ -20,7 +20,7 @@ import {
 import type { Db } from './db.ts';
 import { summarise, summariseByHour, deriveStatus, deriveBucketStatus } from '../shared/summary.ts';
 import { localDateOf } from '../shared/timezone.ts';
-import { bandOf } from '../shared/band.ts';
+import { bandOf, channelOf } from '../shared/band.ts';
 import type {
   HourBucketDto,
   RoomDayDetailDocument,
@@ -46,6 +46,7 @@ export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryD
       latestBssid: latestWifi?.bssid ?? null,
       latestSsid: latestWifi?.ssid ?? null,
       band: bandOf(latestWifi?.freqMhz ?? null),
+      channel: channelOf(latestWifi?.freqMhz ?? null),
       signalDbm: latestWifi?.signalDbm ?? null,
       seenAps: distinctConnectedApsForLocation(db, location).map((ap) => ({
         bssid: ap.bssid,

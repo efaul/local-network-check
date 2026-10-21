@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import type { RoomSummaryDto } from '../types';
-import { timeAgoFromIso } from '../format';
+import { dateTimeOf } from '../format';
 import { signalQuality } from '../signal';
 import { roomLink } from '../router';
 import { StatusBadge } from './StatusBadge';
@@ -19,44 +19,25 @@ function roomCountLabel(n: number): string {
   return n === 1 ? '1 location' : `${n} locations`;
 }
 
-function RoomWifiCell({ room }: { room: RoomSummaryDto }) {
+/** Band only, for now - channel number (room.channel) is computed and available, just not shown in this column yet. */
+function channelBandLabel(room: RoomSummaryDto): string {
+  return room.band ?? '—';
+}
+
+function NetworkCell({ room }: { room: RoomSummaryDto }) {
   if (room.latestBssid === null) {
-    return (
-      <div className="room-wifi">
-        <span className="muted">No Wi-Fi data</span>
-      </div>
-    );
+    return <span className="muted">No Wi-Fi data</span>;
   }
+  const label = [room.latestSsid ?? room.latestBssid, `(${room.latestBssid})`].filter((part) => part !== null).join(' ');
+  return <span className="point-chip">{label}</span>;
+}
 
-  const quality = room.signalDbm !== null ? signalQuality(room.signalDbm) : 'none';
-  const apLabel = room.latestSsid ?? room.latestBssid;
-  const signalLabel = room.signalDbm !== null ? `${room.signalDbm.toFixed(0)} dBm` : '—';
-  const priorAps = room.seenAps.filter((ap) => ap.bssid !== room.latestBssid);
-
+function SignalCell({ room }: { room: RoomSummaryDto }) {
+  if (room.signalDbm === null) return <span className="muted">—</span>;
   return (
-    <div className="room-wifi">
-      <div>
-        <span className={`key key-${quality}`} />
-        <span className="point-chip">{apLabel}</span>
-        {room.band !== null ? <span className="point-chip">{room.band}</span> : null}
-        <span className="muted">{signalLabel}</span>
-      </div>
-      {priorAps.length > 0 ? (
-        <div className="room-wifi-history">
-          <span className="muted">Also connected to: </span>
-          {priorAps.map((ap) => {
-            const label = [ap.ssid ?? ap.bssid, `(${ap.bssid})`, ap.band !== null ? `· ${ap.band}` : null]
-              .filter((part) => part !== null)
-              .join(' ');
-            return (
-              <span key={ap.bssid} className="point-chip" title={`Last seen ${ap.lastSeenAt}`}>
-                {label}
-              </span>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
+    <span>
+      <span className={`key key-${signalQuality(room.signalDbm)}`} /> {room.signalDbm.toFixed(0)} dBm
+    </span>
   );
 }
 
@@ -98,19 +79,40 @@ export function RoomsView() {
           {failed ? <span className="muted"> · last update failed, showing previous data</span> : null}
         </p>
       </div>
-      <div className="rooms-list">
-        {rooms.map((room) => (
-          <a key={room.location} className={`room-row status-${room.status}`} href={roomLink(room.location)}>
-            <div>
-              <div className="room-name">{room.location}</div>
-              <div className="room-meta">
-                {room.isBackbone ? 'Continuous backbone reference' : `Last surveyed: ${timeAgoFromIso(room.lastSeenAt)}`}
-              </div>
-              <RoomWifiCell room={room} />
-            </div>
-            <StatusBadge status={room.status} />
-          </a>
-        ))}
+
+      <div className="room-matrix-scroll">
+        <table className="room-matrix">
+          <thead>
+            <tr>
+              <th>Room</th>
+              <th>Status</th>
+              <th>Band</th>
+              <th>Network</th>
+              <th>Signal</th>
+              <th>Last sample</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rooms.map((room) => (
+              <tr key={room.location} className={`status-${room.status}`}>
+                <td className="room-matrix-name">
+                  <a href={roomLink(room.location)}>{room.location}</a>
+                </td>
+                <td>
+                  <StatusBadge status={room.status} />
+                </td>
+                <td>{channelBandLabel(room)}</td>
+                <td>
+                  <NetworkCell room={room} />
+                </td>
+                <td>
+                  <SignalCell room={room} />
+                </td>
+                <td className="muted">{dateTimeOf(room.lastSeenAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

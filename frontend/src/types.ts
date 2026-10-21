@@ -68,6 +68,7 @@ export interface RoomSummaryDto {
   readonly latestBssid: string | null;
   readonly latestSsid: string | null;
   readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
+  readonly channel: number | null;
   readonly signalDbm: number | null;
   readonly seenAps: readonly {
     readonly bssid: string;
