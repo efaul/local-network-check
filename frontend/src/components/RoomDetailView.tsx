@@ -112,10 +112,6 @@ export function RoomDetailView({ location }: { location: string }) {
               <section className="panel">
                 <h2>Wi-Fi signal strength</h2>
                 <SignalChart wifiSamples={dayDoc.wifiSamples} />
-                <p className="legend">
-                  <span className="key key-good" /> good (≥ −60 dBm) <span className="key key-fair" /> fair{' '}
-                  <span className="key key-poor" /> poor <span className="key key-none" /> disconnected
-                </p>
               </section>
 
               <section className="panel">
