@@ -1,41 +1,26 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../api';
 import type { BackboneStateDocument } from '../types';
 import { age, ms, pct } from '../format';
 import { StatusBadge } from './StatusBadge';
 import { BackboneChart } from './BackboneChart';
+import { usePoll } from '../usePoll';
 
 const POLL_MS = 2000;
 
 export function BackboneView() {
   const [state, setState] = useState<BackboneStateDocument | null>(null);
   const [failed, setFailed] = useState(false);
-  const mounted = useRef(true);
 
-  useEffect(() => {
-    mounted.current = true;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const poll = async (): Promise<void> => {
-      try {
-        const next = await api.backboneState();
-        if (mounted.current) {
-          setState(next);
-          setFailed(false);
-        }
-      } catch {
-        if (mounted.current) setFailed(true);
-      } finally {
-        if (mounted.current) timer = setTimeout(() => void poll(), POLL_MS);
-      }
-    };
-
-    void poll();
-    return () => {
-      mounted.current = false;
-      if (timer !== null) clearTimeout(timer);
-    };
-  }, []);
+  usePoll(async () => {
+    try {
+      const next = await api.backboneState();
+      setState(next);
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    }
+  }, POLL_MS);
 
   if (state === null) {
     return failed ? (

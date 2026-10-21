@@ -1,10 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../api';
 import type { RoomSummaryDto } from '../types';
 import { timeAgoFromIso } from '../format';
 import { signalQuality } from '../signal';
 import { roomLink } from '../router';
 import { StatusBadge } from './StatusBadge';
+import { usePoll } from '../usePoll';
+import { LiveIndicator } from './LiveIndicator';
+
+/**
+ * Survey data can't change faster than the probe's own reporting cadence
+ * (30s Wi-Fi sampling + 10s forwarder flush, per config/probe.json), so
+ * polling faster than that would only ever re-fetch identical data.
+ */
+const POLL_MS = 20_000;
 
 function roomCountLabel(n: number): string {
   return n === 1 ? '1 location' : `${n} locations`;
@@ -55,22 +64,17 @@ export function RoomsView() {
   const [rooms, setRooms] = useState<readonly RoomSummaryDto[] | null>(null);
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { rooms } = await api.rooms();
-        if (!cancelled) setRooms(rooms);
-      } catch {
-        if (!cancelled) setFailed(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  usePoll(async () => {
+    try {
+      const { rooms } = await api.rooms();
+      setRooms(rooms);
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    }
+  }, POLL_MS);
 
-  if (failed) return <p className="empty-state">Could not load rooms from the server.</p>;
+  if (failed && rooms === null) return <p className="empty-state">Could not load rooms from the server.</p>;
   if (rooms === null) return <p className="muted">Loading…</p>;
 
   if (rooms.length === 0) {
@@ -85,8 +89,14 @@ export function RoomsView() {
   return (
     <div className="view-stack">
       <div>
-        <h1>Rooms</h1>
-        <p className="subtitle">{roomCountLabel(rooms.length)}</p>
+        <h1>
+          Rooms
+          <LiveIndicator />
+        </h1>
+        <p className="subtitle">
+          {roomCountLabel(rooms.length)}
+          {failed ? <span className="muted"> · last update failed, showing previous data</span> : null}
+        </p>
       </div>
       <div className="rooms-list">
         {rooms.map((room) => (

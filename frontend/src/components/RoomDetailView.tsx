@@ -5,6 +5,18 @@ import { STATUS_TEXT, ms, pct, timeOf } from '../format';
 import { bandOf } from '../band';
 import { HourHeatmap } from './HourHeatmap';
 import { SignalChart } from './SignalChart';
+import { usePoll } from '../usePoll';
+import { LiveIndicator } from './LiveIndicator';
+
+/**
+ * Only the most recent survey day can still receive new reports from a
+ * probe that is physically in the room right now - a past day's data is
+ * closed history and re-fetching it on a timer would be pure waste. Refresh
+ * cadence is comfortably above the probe's real reporting cadence (30s Wi-Fi
+ * sampling + 10s forwarder flush, per config/probe.json), so it won't poll
+ * meaningfully faster than new data could ever arrive.
+ */
+const LIVE_DAY_POLL_MS = 15_000;
 
 export function RoomDetailView({ location }: { location: string }) {
   const [dates, setDates] = useState<readonly string[] | null>(null);
@@ -12,7 +24,7 @@ export function RoomDetailView({ location }: { location: string }) {
   const [hoursDoc, setHoursDoc] = useState<RoomHoursDocument | null>(null);
   const [dayDoc, setDayDoc] = useState<RoomDayDetailDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [refreshError, setRefreshError] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
 
   useEffect(() => {
     setDates(null);
@@ -38,38 +50,57 @@ export function RoomDetailView({ location }: { location: string }) {
     };
   }, [location]);
 
+  // Days are returned newest-first (see RoomDaysDocument), so the live day -
+  // the one a probe physically in this room could still be adding to - is
+  // always the first entry.
+  const isLiveDay = dates !== null && date !== null && date === dates[0];
+
   useEffect(() => {
-    if (date === null) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
     setHoursDoc(null);
     setDayDoc(null);
     setError(null);
-    setRefreshError(false);
-    const refresh = async () => {
+    setRefreshFailed(false);
+  }, [location, date]);
+
+  usePoll(
+    async () => {
+      if (date === null) return;
+      try {
+        const [hours, day] = await Promise.all([api.roomHours(location, date), api.roomDay(location, date)]);
+        setHoursDoc(hours);
+        setDayDoc(day);
+        setError(null);
+        setRefreshFailed(false);
+      } catch {
+        setError('Could not load this day.');
+        setRefreshFailed(true);
+      }
+    },
+    date === null ? null : isLiveDay ? LIVE_DAY_POLL_MS : null,
+    [location, date],
+  );
+
+  // A historical day never auto-refreshes (see isLiveDay above), so it still
+  // needs exactly one load. usePoll always fires once immediately regardless
+  // of whether polling is enabled - this effect only covers the case usePoll
+  // intentionally skips: date !== null but isLiveDay is false.
+  useEffect(() => {
+    if (date === null || isLiveDay) return;
+    let cancelled = false;
+    void (async () => {
       try {
         const [hours, day] = await Promise.all([api.roomHours(location, date), api.roomDay(location, date)]);
         if (cancelled) return;
         setHoursDoc(hours);
         setDayDoc(day);
-        setError(null);
-        setRefreshError(false);
       } catch {
-        if (!cancelled) {
-          setError('Could not refresh this day. Retrying automatically…');
-          setRefreshError(true);
-        }
-      } finally {
-        // Schedule after completion so slower requests never overlap.
-        if (!cancelled) timer = setTimeout(() => { void refresh(); }, 2000);
+        if (!cancelled) setError('Could not load this day.');
       }
-    };
-    void refresh();
+    })();
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
-  }, [location, date]);
+  }, [location, date, isLiveDay]);
 
   const pointChips = useMemo(() => {
     if (dayDoc === null) return [];
@@ -91,7 +122,10 @@ export function RoomDetailView({ location }: { location: string }) {
       <a className="back-link" href="#/rooms">
         ← All rooms
       </a>
-      <h1>{location}</h1>
+      <h1>
+        {location}
+        {isLiveDay ? <LiveIndicator /> : null}
+      </h1>
 
       {error !== null && dates !== null && dates.length === 0 ? (
         <p className="empty-state">{error}</p>
@@ -125,10 +159,18 @@ export function RoomDetailView({ location }: { location: string }) {
 
               <section className="panel">
                 <h2>Wi-Fi signal strength</h2>
-                <p className="signal-refresh" role="status">
-                  {refreshError ? error : 'Auto-refreshing every 2 seconds · new readings appear when the probe reports.'}
-                  {dayDoc.wifiSamples.length > 0 && ` Last reading: ${timeOf(dayDoc.wifiSamples[dayDoc.wifiSamples.length - 1].at)} (Europe/Amsterdam).`}
-                </p>
+                {isLiveDay ? (
+                  <p className="signal-refresh" role="status">
+                    {refreshFailed
+                      ? (error ?? 'Could not refresh this day. Retrying automatically…')
+                      : 'Auto-refreshing every 15 seconds · new readings appear when the probe reports.'}
+                    {dayDoc.wifiSamples.length > 0 && ` Last reading: ${timeOf(dayDoc.wifiSamples[dayDoc.wifiSamples.length - 1].at)} (Europe/Amsterdam).`}
+                  </p>
+                ) : (
+                  <p className="signal-refresh" role="status">
+                    Historical day · not auto-refreshing.
+                  </p>
+                )}
                 <SignalChart wifiSamples={dayDoc.wifiSamples} />
               </section>
 

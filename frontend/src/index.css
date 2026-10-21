@@ -175,6 +175,24 @@ h2 {
   50% { box-shadow: 0 0 0 5px transparent; opacity: 0.75; }
 }
 
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--accent);
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.live-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent);
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
 /* -------------------------------------------------------------- fact grid */
 
 .fact-grid {
