@@ -130,10 +130,6 @@ export function RoomDetailView({ location }: { location: string }) {
                   {dayDoc.wifiSamples.length > 0 && ` Last reading: ${timeOf(dayDoc.wifiSamples[dayDoc.wifiSamples.length - 1].at)} (Europe/Amsterdam).`}
                 </p>
                 <SignalChart wifiSamples={dayDoc.wifiSamples} />
-                <p className="legend">
-                  <span className="key key-fair" /> fair{' '}
-                  <span className="key key-poor" /> poor <span className="key key-none" /> disconnected
-                </p>
               </section>
 
               <section className="panel">

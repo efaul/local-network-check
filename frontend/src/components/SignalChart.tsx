@@ -2,14 +2,28 @@ import type { WifiSampleDto } from '../types';
 import { bandOf } from '../band';
 import { signalQuality } from '../signal';
 import { timeOf } from '../format';
-import { signalPath } from '../signalPath';
+import {
+  CHART_HEIGHT,
+  CHART_WIDTH,
+  GAP_BREAK_INTERVALS,
+  SIGNAL_CEILING_DBM,
+  SIGNAL_FLOOR_DBM,
+  bandSwitches,
+  bucketReadings,
+  buildSignalPath,
+  chooseBucketMs,
+  labelledSwitches,
+  medianGapMs,
+  segmentBy,
+  withGaps,
+  xForTime,
+  yForDbm,
+} from '../signalLayout';
 
-// -60 dBm or stronger is a solid connection, -75 dBm is usable but marginal,
-// anything weaker is poor — common Wi-Fi signal quality conventions.
-const SIGNAL_FLOOR_DBM = -90;
-const SIGNAL_CEILING_DBM = -30;
-const CHART_WIDTH = 1000;
-const CHART_HEIGHT = 100;
+/** Minimum horizontal distance between two band labels before one is dropped. */
+const MIN_LABEL_SPACING = 70;
+
+const DISCONNECTED = 'disconnected';
 
 function signalAxisTicks(): Array<{ dbm: number; percent: number }> {
   const steps = 4;
@@ -20,11 +34,13 @@ function signalAxisTicks(): Array<{ dbm: number; percent: number }> {
   });
 }
 
-interface Point {
-  readonly x: number;
-  readonly y: number;
-  readonly quality: 'good' | 'fair' | 'poor' | 'none';
-  readonly sample: WifiSampleDto;
+interface PlotPoint {
+  readonly atMs: number;
+  readonly dbm: number | null;
+  readonly minDbm: number;
+  readonly maxDbm: number;
+  readonly sampleCount: number;
+  readonly band: string;
 }
 
 export function SignalChart({ wifiSamples }: { wifiSamples: readonly WifiSampleDto[] }) {
@@ -33,75 +49,140 @@ export function SignalChart({ wifiSamples }: { wifiSamples: readonly WifiSampleD
   }
 
   const ordered = [...wifiSamples].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  const start = Date.parse(ordered[0].at);
-  const duration = Date.parse(ordered[ordered.length - 1].at) - start;
+  const allTimes = ordered.map((s) => Date.parse(s.at));
+  const firstMs = allTimes[0] as number;
+  const lastMs = allTimes[allTimes.length - 1] as number;
+  const bucketMs = chooseBucketMs(lastMs - firstMs, medianGapMs(allTimes));
 
-  const points: Point[] = ordered.map((sample) => {
-    const x = duration === 0 ? CHART_WIDTH / 2 : ((Date.parse(sample.at) - start) / duration) * CHART_WIDTH;
-    if (!sample.connected || sample.signalDbm === null || !Number.isFinite(sample.signalDbm)) {
-      return { x, y: CHART_HEIGHT, quality: 'none', sample };
-    }
-    const clamped = Math.min(SIGNAL_CEILING_DBM, Math.max(SIGNAL_FLOOR_DBM, sample.signalDbm));
-    const fraction = (clamped - SIGNAL_FLOOR_DBM) / (SIGNAL_CEILING_DBM - SIGNAL_FLOOR_DBM);
-    return { x, y: CHART_HEIGHT - fraction * CHART_HEIGHT, quality: signalQuality(sample.signalDbm), sample };
+  // Tag every sample with the band it was on (or "disconnected"), then split
+  // into runs of one band. Bucketing happens inside a run so a smoothed
+  // value is never the median of two different radios.
+  const tagged = ordered.map((sample) => {
+    const usable =
+      sample.connected && sample.signalDbm !== null && Number.isFinite(sample.signalDbm) && sample.bssid !== null;
+    const band = usable ? (bandOf(sample.freqMhz) ?? 'unknown band') : DISCONNECTED;
+    return { atMs: Date.parse(sample.at), dbm: usable ? (sample.signalDbm as number) : null, band, sample };
   });
 
-  // Line connects consecutive connected readings; a disconnected sample
-  // breaks the line rather than dragging it down to the floor.
-  const d = signalPath(points.map((p) => p.quality === 'none' ? null : p));
+  const runs = segmentBy(tagged, (item) => item.band);
 
+  const plotPoints: PlotPoint[] = [];
+  for (const run of runs) {
+    if (run.key === DISCONNECTED) {
+      // One sentinel per disconnected run is enough to break the line; the
+      // individual readings are still marked on the floor below.
+      const first = run.items[0];
+      if (first !== undefined) {
+        plotPoints.push({ atMs: first.atMs, dbm: null, minDbm: 0, maxDbm: 0, sampleCount: run.items.length, band: DISCONNECTED });
+      }
+      continue;
+    }
+    const buckets = bucketReadings(
+      run.items.map((item) => ({ atMs: item.atMs, dbm: item.dbm as number })),
+      bucketMs,
+    );
+    for (const bucket of buckets) plotPoints.push({ ...bucket, band: run.key });
+  }
+
+  const withGapInfo = withGaps(plotPoints);
+  const typicalGapMs = medianGapMs(allTimes);
+  const gapThresholdMs = typicalGapMs === null ? null : Math.max(typicalGapMs, bucketMs) * GAP_BREAK_INTERVALS;
+
+  const path = buildSignalPath(
+    withGapInfo.map((p) => ({
+      x: xForTime(p.atMs, firstMs, lastMs),
+      y: p.dbm === null ? CHART_HEIGHT : yForDbm(p.dbm),
+      disconnected: p.dbm === null,
+      gapMs: p.gapMs,
+    })),
+    gapThresholdMs,
+  );
+
+  // Band-change annotations. Disconnected runs are not a band, so they are
+  // excluded - a drop and reconnect on the same band is not a band switch.
+  const bandRuns = runs.filter((run) => run.key !== DISCONNECTED);
+  const marks = bandSwitches(bandRuns).map((mark) => ({
+    ...mark,
+    x: xForTime(mark.atMs, firstMs, lastMs),
+  }));
+  const showLabel = labelledSwitches(marks, MIN_LABEL_SPACING);
+
+  const disconnectedTimes = tagged.filter((t) => t.band === DISCONNECTED).map((t) => t.atMs);
   const ticks = signalAxisTicks();
 
   return (
     <>
-    <div className="signal-chart">
-      <div className="signal-axis">
-        {ticks.map((tick) => (
-          <span key={tick.dbm} className="signal-tick" style={{ top: `${tick.percent}%` }}>
-            {tick.dbm} dBm
-          </span>
-        ))}
-      </div>
-      <div className="signal-plot">
-        <div className="signal-gridlines">
+      <div className="signal-chart">
+        <div className="signal-axis">
           {ticks.map((tick) => (
-            <div key={tick.dbm} className="signal-gridline" style={{ top: `${tick.percent}%` }} />
+            <span key={tick.dbm} className="signal-tick" style={{ top: `${tick.percent}%` }}>
+              {tick.dbm} dBm
+            </span>
           ))}
         </div>
-        <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" className="signal-line" role="img" aria-label="Wi-Fi signal strength over time, from −90 to −30 dBm">
-          <path className="signal-path" d={d.trim()} />
-          {points.map((p, i) => {
-            const when = timeOf(p.sample.at);
-            let title: string;
-            if (p.quality === 'none') {
-              const reason = p.sample.reason !== null ? `: ${p.sample.reason}` : '';
-              title = `${when} — not connected${reason}`;
-            } else {
-              const band = bandOf(p.sample.freqMhz);
-              const label = [p.sample.ssid ?? p.sample.bssid, band !== null ? `· ${band}` : null]
-                .filter((part) => part !== null)
-                .join(' ');
-              title = `${when} — ${(p.sample.signalDbm as number).toFixed(0)} dBm${label ? ` · ${label}` : ''}`;
-            }
-            return (
-              <circle
-                key={`${p.sample.at}-${i}`}
-                cx={p.x.toFixed(2)}
-                cy={p.y.toFixed(2)}
-                r="1.6"
-                className="signal-point"
-                data-quality={p.quality}
-                data-latest={i === points.length - 1}
-                data-isolated={(i === 0 || points[i - 1].quality === 'none') && (i === points.length - 1 || points[i + 1].quality === 'none')}
+        <div className="signal-plot">
+          <div className="signal-gridlines">
+            {ticks.map((tick) => (
+              <div key={tick.dbm} className="signal-gridline" style={{ top: `${tick.percent}%` }} />
+            ))}
+          </div>
+
+          {/* Band switches, as HTML rather than SVG: the plot is stretched
+              non-uniformly, which would distort any text drawn inside it. */}
+          <div className="band-marks">
+            {marks.map((mark, i) => (
+              <div
+                key={`${mark.atMs}-${i}`}
+                className="band-mark"
+                style={{ left: `${(mark.x / CHART_WIDTH) * 100}%` }}
+                title={`${timeOf(new Date(mark.atMs).toISOString())} — ${mark.fromBand} → ${mark.toBand}`}
               >
-                <title>{title}</title>
+                {showLabel[i] === true ? <span className="band-mark-label">{mark.toBand}</span> : null}
+              </div>
+            ))}
+          </div>
+
+          <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" className="signal-line">
+            <path className="signal-path" d={path} />
+            {withGapInfo.map((p, i) =>
+              p.dbm === null ? null : (
+                <circle
+                  key={`${p.atMs}-${i}`}
+                  cx={xForTime(p.atMs, firstMs, lastMs).toFixed(2)}
+                  cy={yForDbm(p.dbm).toFixed(2)}
+                  r="1.2"
+                  className="signal-point"
+                  data-quality={signalQuality(p.dbm)}
+                >
+                  <title>
+                    {`${timeOf(new Date(p.atMs).toISOString())} — ${p.dbm.toFixed(0)} dBm`}
+                    {p.sampleCount > 1 ? ` median of ${p.sampleCount} reads (${p.minDbm}..${p.maxDbm})` : ''}
+                    {` · ${p.band}`}
+                  </title>
+                </circle>
+              ),
+            )}
+            {disconnectedTimes.map((atMs, i) => (
+              <circle
+                key={`down-${atMs}-${i}`}
+                cx={xForTime(atMs, firstMs, lastMs).toFixed(2)}
+                cy={CHART_HEIGHT}
+                r="1.4"
+                className="signal-point"
+                data-quality="none"
+              >
+                <title>{`${timeOf(new Date(atMs).toISOString())} — not connected`}</title>
               </circle>
-            );
-          })}
-        </svg>
+            ))}
+          </svg>
+        </div>
       </div>
-    </div>
-    <div className="signal-times"><span>{timeOf(ordered[0].at)}</span><span>{timeOf(ordered[ordered.length - 1].at)}</span></div>
+      <p className="legend">
+        <span className="key key-good" /> good (≥ −60 dBm) <span className="key key-fair" /> fair{' '}
+        <span className="key key-poor" /> poor <span className="key key-none" /> disconnected
+        <span className="legend-sep">│</span>
+        <span className="band-mark-key" /> band switch
+      </p>
     </>
   );
 }
