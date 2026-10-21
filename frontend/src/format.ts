@@ -24,8 +24,11 @@ export function age(ageMs: number | null): string {
   const seconds = Math.max(0, Math.round(ageMs / 1000));
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s ago`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m ago`;
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 export function timeAgoFromIso(iso: string | null): string {

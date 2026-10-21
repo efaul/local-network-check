@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import type { RoomSummaryDto } from '../types';
-import { dateTimeOf } from '../format';
+import { dateTimeOf, timeAgoFromIso } from '../format';
 import { signalQuality } from '../signal';
 import { roomLink } from '../router';
 import { StatusBadge } from './StatusBadge';
@@ -108,7 +108,9 @@ export function RoomsView() {
                 <td>
                   <SignalCell room={room} />
                 </td>
-                <td className="muted">{dateTimeOf(room.lastSeenAt)}</td>
+                <td className="muted" title={dateTimeOf(room.lastSeenAt)}>
+                  {timeAgoFromIso(room.lastSeenAt)}
+                </td>
               </tr>
             ))}
           </tbody>
