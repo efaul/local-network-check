@@ -22,5 +22,9 @@
   "db": {
     "path": "./data/central.sqlite"
   },
-  "apNames": {}
+  "apNames": {
+    "b0:e4:d5:20:9d:ec": "livingroom-5ghz",
+    "b0:e4:d5:20:9d:f0": "livingroom-2.4ghz",
+    "cc:f4:11:7a:1e:be": "office-5ghz"
+  }
 }
