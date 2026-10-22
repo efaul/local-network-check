@@ -7,6 +7,7 @@ import { createServer as createHttpServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import type { ServerConfig } from './config.ts';
 import type { Db } from './db.ts';
 import { recentSamplesForDevice, lastSampleForDevice } from './db.ts';
@@ -17,6 +18,8 @@ import type { BackboneStateDocument } from '../shared/contract.js';
 
 const RECENT_LIMIT = 300;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+/** Below this size, gzip's own overhead and CPU cost aren't worth it. */
+const COMPRESSION_THRESHOLD_BYTES = 1024;
 
 /**
  * Static assets come from the React dashboard's Vite build (`frontend/`,
@@ -60,14 +63,49 @@ async function resolveStaticFile(publicDir: string, pathname: string): Promise<{
   }
 }
 
-function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
-  const body = JSON.stringify(payload);
-  res.writeHead(statusCode, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  });
-  res.end(body);
+function acceptsGzip(req: IncomingMessage): boolean {
+  const header = req.headers['accept-encoding'];
+  const value = Array.isArray(header) ? header.join(',') : (header ?? '');
+  return /\bgzip\b/.test(value);
+}
+
+/**
+ * Writes a response body, transparently gzipping it when the client supports
+ * gzip and the payload is large enough to be worth compressing. `Vary:
+ * Accept-Encoding` is always set on compressible responses so caches/proxies
+ * don't serve a gzipped body to a client that didn't ask for one.
+ */
+function sendBody(
+  req: IncomingMessage,
+  res: ServerResponse,
+  statusCode: number,
+  contentType: string,
+  cacheControl: string,
+  body: Buffer,
+  isHead: boolean,
+): void {
+  const headers: Record<string, string | number> = {
+    'content-type': contentType,
+    'cache-control': cacheControl,
+    vary: 'accept-encoding',
+  };
+
+  if (body.length >= COMPRESSION_THRESHOLD_BYTES && acceptsGzip(req)) {
+    const compressed = gzipSync(body);
+    headers['content-encoding'] = 'gzip';
+    headers['content-length'] = compressed.length;
+    res.writeHead(statusCode, headers);
+    res.end(isHead ? undefined : compressed);
+    return;
+  }
+
+  headers['content-length'] = body.length;
+  res.writeHead(statusCode, headers);
+  res.end(isHead ? undefined : body);
+}
+
+function sendJson(req: IncomingMessage, res: ServerResponse, statusCode: number, payload: unknown): void {
+  sendBody(req, res, statusCode, 'application/json; charset=utf-8', 'no-store', Buffer.from(JSON.stringify(payload)), false);
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -134,19 +172,19 @@ async function handleRequest(
 
   try {
     if (path === '/api/state' && method === 'GET') {
-      sendJson(res, 200, buildBackboneState(db, config));
+      sendJson(req, res, 200, buildBackboneState(db, config));
       return;
     }
 
     if (path === '/api/ingest' && method === 'POST') {
       const body = await readJsonBody(req);
       const request = validateIngestRequest(body);
-      sendJson(res, 200, applyIngest(db, request));
+      sendJson(req, res, 200, applyIngest(db, request));
       return;
     }
 
     if (path === '/api/rooms' && method === 'GET') {
-      sendJson(res, 200, {
+      sendJson(req, res, 200, {
         rooms: getRoomsList(db, {
           backboneDeviceId: config.node.id,
           backboneLocation: config.node.location,
@@ -164,27 +202,27 @@ async function handleRequest(
       const date = url.searchParams.get('date');
 
       if (action === 'days') {
-        sendJson(res, 200, getDaysForLocation(db, location));
+        sendJson(req, res, 200, getDaysForLocation(db, location));
         return;
       }
 
       if (date === null || !isValidCalendarDate(date)) {
-        sendJson(res, 400, { error: 'invalid-or-missing-date', detail: 'expected ?date=YYYY-MM-DD' });
+        sendJson(req, res, 400, { error: 'invalid-or-missing-date', detail: 'expected ?date=YYYY-MM-DD' });
         return;
       }
 
       if (action === 'hours') {
-        sendJson(res, 200, getHoursForDay(db, location, date));
+        sendJson(req, res, 200, getHoursForDay(db, location, date));
         return;
       }
       if (action === 'day') {
-        sendJson(res, 200, getDayDetail(db, location, date));
+        sendJson(req, res, 200, getDayDetail(db, location, date));
         return;
       }
     }
 
     if (path.startsWith('/api/')) {
-      sendJson(res, 404, { error: 'not-found' });
+      sendJson(req, res, 404, { error: 'not-found' });
       return;
     }
 
@@ -196,21 +234,24 @@ async function handleRequest(
 
     const asset = await resolveStaticFile(publicDir, path);
     if (asset === null) {
-      sendJson(res, 404, { error: 'not-found' });
+      sendJson(req, res, 404, { error: 'not-found' });
       return;
     }
 
-    res.writeHead(200, {
-      'content-type': asset.type,
-      'content-length': asset.body.length,
-      'cache-control': 'no-store',
-    });
-    res.end(method === 'HEAD' ? undefined : asset.body);
+    // Only /assets/* is content-hashed by the Vite build (e.g. index-BXb3vVd.js) -
+    // safe to cache forever since a new build means a new filename. Everything
+    // else (index.html, favicon.svg, the SPA fallback) keeps the same name
+    // across builds and must always be revalidated.
+    const cacheControl = path.startsWith('/assets/')
+      ? 'public, max-age=31536000, immutable'
+      : 'no-store';
+
+    sendBody(req, res, 200, asset.type, cacheControl, asset.body, method === 'HEAD');
   } catch (err) {
     if (err instanceof IngestError) {
-      sendJson(res, 400, { error: 'invalid-request', detail: err.message });
+      sendJson(req, res, 400, { error: 'invalid-request', detail: err.message });
       return;
     }
-    sendJson(res, 500, { error: 'internal-error', detail: (err as Error).message });
+    sendJson(req, res, 500, { error: 'internal-error', detail: (err as Error).message });
   }
 }

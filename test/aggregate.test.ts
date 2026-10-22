@@ -77,7 +77,7 @@ test('getDayDetail returns the full timeline, wifi context, and a day-level summ
   const db = await seededDb();
   const detail = getDayDetail(db, 'Kitchen', '2026-06-01');
 
-  assert.equal(detail.samples.length, 4);
+  assert.equal(detail.summary.total, 4);
   assert.equal(detail.wifiSamples.length, 1);
   assert.equal(detail.wifiSamples[0]?.bssid, 'aa:bb:cc:dd:ee:ff');
   assert.equal(detail.summary.status, 'degraded');

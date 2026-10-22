@@ -195,7 +195,7 @@ export function RoomDetailView({ location }: { location: string }) {
                   </div>
                   <div>
                     <dt>Samples</dt>
-                    <dd>{dayDoc.samples.length}</dd>
+                    <dd>{dayDoc.summary.total}</dd>
                   </div>
                 </dl>
                 {pointChips.length > 0 ? (

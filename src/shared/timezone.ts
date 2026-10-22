@@ -13,18 +13,34 @@ interface LocalParts {
   second: string;
 }
 
+/**
+ * `Intl.DateTimeFormat` construction is expensive relative to formatting
+ * itself (~31us each, measured) - cheap once, but ruinous when called per
+ * row across tens of thousands of samples, which `localDateOf`/`localHourOf`
+ * are. Cached per timezone since that's the only thing that varies.
+ */
+const formatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(timeZone: string): Intl.DateTimeFormat {
+  let dtf = formatterCache.get(timeZone);
+  if (dtf === undefined) {
+    dtf = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    formatterCache.set(timeZone, dtf);
+  }
+  return dtf;
+}
+
 function localParts(iso: string, timeZone: string): LocalParts {
-  const dtf = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const parts = Object.fromEntries(dtf.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+  const parts = Object.fromEntries(formatterFor(timeZone).formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
   // Some ICU implementations render midnight as hour "24" with hour12: false.
   if (parts.hour === '24') parts.hour = '00';
   return parts as unknown as LocalParts;

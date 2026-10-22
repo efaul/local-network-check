@@ -124,11 +124,11 @@ export function getDayDetail(db: Db, location: string, date: string): RoomDayDet
     summary: {
       status,
       statusReason: reason,
+      total: summary.total,
       counts: summary.counts,
       lossRatio: summary.lossRatio,
       latency: summary.latency,
     },
-    samples,
     wifiSamples,
   };
 }

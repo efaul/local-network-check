@@ -129,10 +129,11 @@ export interface RoomDayDetailDocument {
   readonly summary: {
     readonly status: StatusName;
     readonly statusReason: string;
+    /** Total ping samples this day - every state combined. */
+    readonly total: number;
     readonly counts: Record<ProbeStateName, number>;
     readonly lossRatio: number | null;
     readonly latency: LatencyDto;
   };
-  readonly samples: readonly ResultDto[];
   readonly wifiSamples: readonly WifiSampleDto[];
 }
