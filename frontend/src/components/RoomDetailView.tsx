@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import type { RoomDayDetailDocument, RoomHoursDocument } from '../types';
-import { STATUS_TEXT, ms, pct, timeOf } from '../format';
+import { STATUS_TEXT, ms, pct, timeOf, networkLabel } from '../format';
 import { bandOf } from '../band';
 import { HourHeatmap } from './HourHeatmap';
 import { SignalChart } from './SignalChart';
@@ -112,10 +112,9 @@ export function RoomDetailView({ location }: { location: string }) {
     }
     return [...points.entries()].map(([bssid, info]) => {
       const band = bandOf(info.freqMhz);
-      const label =
-        info.apName !== null
-          ? [info.apName, band !== null ? `· ${band}` : null].filter((part) => part !== null).join(' ')
-          : [info.ssid ?? bssid, `(${bssid})`, band !== null ? `· ${band}` : null].filter((part) => part !== null).join(' ');
+      const label = [networkLabel(info.ssid, bssid, info.apName), band !== null ? `· ${band}` : null]
+        .filter((part) => part !== null)
+        .join(' ');
       return { bssid, label };
     });
   }, [dayDoc]);

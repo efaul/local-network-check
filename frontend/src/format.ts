@@ -48,3 +48,13 @@ export function dateTimeOf(iso: string | null): string {
   const timePart = date.toLocaleTimeString('en-GB', { timeZone: DISPLAY_TIMEZONE });
   return `${datePart}, ${timePart}`;
 }
+
+/**
+ * "ssid(identifier)" where identifier is the configured friendly name (config
+ * `apNames`) when one exists, otherwise the raw BSSID - same shape either
+ * way, just with a human-readable identifier swapped in when available.
+ */
+export function networkLabel(ssid: string | null, bssid: string, apName: string | null): string {
+  const identifier = apName ?? bssid;
+  return `${ssid ?? identifier} (${identifier})`;
+}
