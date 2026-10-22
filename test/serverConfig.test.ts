@@ -38,3 +38,33 @@ test('rejects an address containing whitespace', () => {
   (raw['target'] as Record<string, unknown>)['address'] = '192.168.86.1 -c 100';
   assert.throws(() => validateServerConfig(raw), /must not contain whitespace/);
 });
+
+test('apNames is optional and defaults to empty', () => {
+  const config = validateServerConfig(base());
+  assert.deepEqual(config.apNames, {});
+});
+
+test('apNames accepts a BSSID -> name map and lowercases the key', () => {
+  const raw = base();
+  raw['apNames'] = { 'AA:BB:CC:DD:EE:FF': 'Living Room Mesh' };
+  const config = validateServerConfig(raw);
+  assert.deepEqual(config.apNames, { 'aa:bb:cc:dd:ee:ff': 'Living Room Mesh' });
+});
+
+test('rejects apNames that is not an object', () => {
+  const raw = base();
+  raw['apNames'] = 'not an object';
+  assert.throws(() => validateServerConfig(raw), /apNames must be an object/);
+});
+
+test('rejects an apNames key that is not a valid BSSID', () => {
+  const raw = base();
+  raw['apNames'] = { 'not-a-bssid': 'Office AP' };
+  assert.throws(() => validateServerConfig(raw), /is not a valid BSSID/);
+});
+
+test('rejects an apNames value that is not a non-empty string', () => {
+  const raw = base();
+  raw['apNames'] = { 'aa:bb:cc:dd:ee:ff': 123 };
+  assert.throws(() => validateServerConfig(raw), /must be a non-empty string/);
+});

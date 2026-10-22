@@ -190,6 +190,7 @@ async function handleRequest(
           backboneLocation: config.node.location,
           windowMs: config.window.ms,
           intervalMs: config.probe.intervalMs,
+          apNames: config.apNames,
         }),
       });
       return;
@@ -216,7 +217,7 @@ async function handleRequest(
         return;
       }
       if (action === 'day') {
-        sendJson(req, res, 200, getDayDetail(db, location, date));
+        sendJson(req, res, 200, getDayDetail(db, location, date, config.apNames));
         return;
       }
     }

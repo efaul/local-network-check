@@ -84,6 +84,10 @@ export function BackboneView() {
             <dd>{ms(state.window.latency.p95Ms)}</dd>
           </div>
           <div>
+            <dt>p98</dt>
+            <dd>{ms(state.window.latency.p98Ms)}</dd>
+          </div>
+          <div>
             <dt>No reply</dt>
             <dd>{pct(state.window.lossRatio)}</dd>
           </div>

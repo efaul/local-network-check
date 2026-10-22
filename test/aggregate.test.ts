@@ -31,7 +31,13 @@ async function seededDb(): Promise<Db> {
 
 test('getRoomsList marks the backbone location and gives it a live status', async () => {
   const db = await seededDb();
-  const rooms = getRoomsList(db, { backboneDeviceId: 'backbone-1', backboneLocation: 'Backbone', windowMs: 900_000, intervalMs: 5000 });
+  const rooms = getRoomsList(db, {
+    backboneDeviceId: 'backbone-1',
+    backboneLocation: 'Backbone',
+    windowMs: 900_000,
+    intervalMs: 5000,
+    apNames: { 'aa:bb:cc:dd:ee:ff': 'Living Room Mesh' },
+  });
 
   const backbone = rooms.find((r) => r.location === 'Backbone');
   const kitchen = rooms.find((r) => r.location === 'Kitchen');
@@ -39,6 +45,7 @@ test('getRoomsList marks the backbone location and gives it a live status', asyn
   assert.equal(backbone?.isBackbone, true);
   assert.equal(backbone?.status, 'ok');
   assert.equal(backbone?.latestBssid, null, 'backbone has no survey wifi samples');
+  assert.equal(backbone?.latestApName, null);
   assert.equal(backbone?.band, null);
   assert.equal(backbone?.channel, null);
 
@@ -48,13 +55,29 @@ test('getRoomsList marks the backbone location and gives it a live status', asyn
   assert.equal(kitchen?.latestDate, '2026-06-01');
   assert.equal(kitchen?.latestBssid, 'aa:bb:cc:dd:ee:ff');
   assert.equal(kitchen?.latestSsid, 'Home');
+  assert.equal(kitchen?.latestApName, 'Living Room Mesh');
   assert.equal(kitchen?.band, '5 GHz');
   assert.equal(kitchen?.channel, 36, 'freqMhz 5180 is channel 36');
   assert.equal(kitchen?.signalDbm, -50);
   assert.equal(kitchen?.seenAps.length, 1);
   assert.equal(kitchen?.seenAps[0]?.bssid, 'aa:bb:cc:dd:ee:ff');
+  assert.equal(kitchen?.seenAps[0]?.apName, 'Living Room Mesh');
   assert.equal(kitchen?.seenAps[0]?.band, '5 GHz');
   assert.deepEqual(backbone?.seenAps, [], 'backbone has no survey wifi samples');
+});
+
+test('getRoomsList leaves apName null for an unconfigured BSSID', async () => {
+  const db = await seededDb();
+  const rooms = getRoomsList(db, {
+    backboneDeviceId: 'backbone-1',
+    backboneLocation: 'Backbone',
+    windowMs: 900_000,
+    intervalMs: 5000,
+    apNames: {},
+  });
+  const kitchen = rooms.find((r) => r.location === 'Kitchen');
+  assert.equal(kitchen?.latestApName, null);
+  assert.equal(kitchen?.seenAps[0]?.apName, null);
 });
 
 test('getHoursForDay buckets correctly and leaves untouched hours unknown', async () => {
@@ -75,12 +98,19 @@ test('getDaysForLocation lists every day that has data', async () => {
 
 test('getDayDetail returns the full timeline, wifi context, and a day-level summary', async () => {
   const db = await seededDb();
-  const detail = getDayDetail(db, 'Kitchen', '2026-06-01');
+  const detail = getDayDetail(db, 'Kitchen', '2026-06-01', { 'aa:bb:cc:dd:ee:ff': 'Living Room Mesh' });
 
   assert.equal(detail.summary.total, 4);
   assert.equal(detail.wifiSamples.length, 1);
   assert.equal(detail.wifiSamples[0]?.bssid, 'aa:bb:cc:dd:ee:ff');
+  assert.equal(detail.wifiSamples[0]?.apName, 'Living Room Mesh');
   assert.equal(detail.summary.status, 'degraded');
   assert.equal(detail.summary.counts.ok, 2);
   assert.equal(detail.summary.counts.timeout, 2);
+});
+
+test('getDayDetail leaves apName null for an unconfigured BSSID', async () => {
+  const db = await seededDb();
+  const detail = getDayDetail(db, 'Kitchen', '2026-06-01', {});
+  assert.equal(detail.wifiSamples[0]?.apName, null);
 });

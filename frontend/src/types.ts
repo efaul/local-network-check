@@ -23,6 +23,7 @@ export interface LatencyDto {
   readonly sampleCount: number;
   readonly medianMs: number | null;
   readonly p95Ms: number | null;
+  readonly p98Ms: number | null;
   readonly minMs: number | null;
   readonly maxMs: number | null;
 }
@@ -58,6 +59,10 @@ export interface WifiSampleDto {
   readonly reason: string | null;
 }
 
+export interface WifiSampleWithApNameDto extends WifiSampleDto {
+  readonly apName: string | null;
+}
+
 export interface RoomSummaryDto {
   readonly location: string;
   readonly latestDate: string | null;
@@ -67,12 +72,15 @@ export interface RoomSummaryDto {
   readonly isBackbone: boolean;
   readonly latestBssid: string | null;
   readonly latestSsid: string | null;
+  readonly latestApName: string | null;
   readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
   readonly channel: number | null;
   readonly signalDbm: number | null;
+  readonly latencyP98Ms: number | null;
   readonly seenAps: readonly {
     readonly bssid: string;
     readonly ssid: string | null;
+    readonly apName: string | null;
     readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
     readonly lastSeenAt: string;
   }[];
@@ -113,5 +121,5 @@ export interface RoomDayDetailDocument {
     readonly lossRatio: number | null;
     readonly latency: LatencyDto;
   };
-  readonly wifiSamples: readonly WifiSampleDto[];
+  readonly wifiSamples: readonly WifiSampleWithApNameDto[];
 }

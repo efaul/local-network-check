@@ -17,6 +17,7 @@ const testConfig: ServerConfig = {
   window: { minutes: 15, ms: 900_000 },
   server: { host: '127.0.0.1', port: 0 },
   db: { path: ':memory:' },
+  apNames: {},
 };
 
 async function withServer(

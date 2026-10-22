@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import type { RoomSummaryDto } from '../types';
-import { dateTimeOf, timeAgoFromIso } from '../format';
+import { dateTimeOf, timeAgoFromIso, ms } from '../format';
 import { signalQuality } from '../signal';
 import { roomLink } from '../router';
 import { StatusBadge } from './StatusBadge';
@@ -27,6 +27,13 @@ function channelBandLabel(room: RoomSummaryDto): string {
 function NetworkCell({ room }: { room: RoomSummaryDto }) {
   if (room.latestBssid === null) {
     return <span className="muted">No Wi-Fi data</span>;
+  }
+  if (room.latestApName !== null) {
+    return (
+      <span className="point-chip" title={room.latestBssid}>
+        {room.latestApName}
+      </span>
+    );
   }
   const label = [room.latestSsid ?? room.latestBssid, `(${room.latestBssid})`].filter((part) => part !== null).join(' ');
   return <span className="point-chip">{label}</span>;
@@ -89,6 +96,7 @@ export function RoomsView() {
               <th>Band</th>
               <th>Network</th>
               <th>Signal</th>
+              <th>p98</th>
               <th>Last sample</th>
             </tr>
           </thead>
@@ -108,6 +116,7 @@ export function RoomsView() {
                 <td>
                   <SignalCell room={room} />
                 </td>
+                <td className="muted">{ms(room.latencyP98Ms)}</td>
                 <td className="muted" title={dateTimeOf(room.lastSeenAt)}>
                   {timeAgoFromIso(room.lastSeenAt)}
                 </td>

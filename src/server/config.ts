@@ -42,6 +42,9 @@ export interface DbConfig {
   readonly path: string;
 }
 
+/** BSSID (lowercase, colon-separated) -> friendly name, e.g. "aa:bb:cc:dd:ee:ff" -> "Living Room Mesh". */
+export type ApNamesConfig = Readonly<Record<string, string>>;
+
 export interface ServerConfig {
   readonly node: NodeIdentity;
   readonly target: TargetConfig;
@@ -49,6 +52,7 @@ export interface ServerConfig {
   readonly window: WindowConfig;
   readonly server: HttpConfig;
   readonly db: DbConfig;
+  readonly apNames: ApNamesConfig;
 }
 
 type Unknowns = Record<string, unknown>;
@@ -73,6 +77,32 @@ function requireInt(value: unknown, path: string, { min, max }: { min: number; m
     throw new ConfigError(`${path} must be between ${min} and ${max} (got ${value})`);
   }
   return value;
+}
+
+const BSSID_RE = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i;
+
+/**
+ * Optional BSSID -> friendly name map. Absent entirely means "no names
+ * configured" rather than an error - every room view falls back to showing
+ * the SSID/BSSID as it always has.
+ */
+function parseApNames(value: unknown, path: string): ApNamesConfig {
+  if (value === undefined) return {};
+  if (!isPlainObject(value)) {
+    throw new ConfigError(`${path} must be an object mapping BSSID to name`);
+  }
+
+  const result: Record<string, string> = {};
+  for (const [bssid, name] of Object.entries(value)) {
+    if (!BSSID_RE.test(bssid)) {
+      throw new ConfigError(`${path}: "${bssid}" is not a valid BSSID (expected aa:bb:cc:dd:ee:ff)`);
+    }
+    if (typeof name !== 'string' || name.trim() === '') {
+      throw new ConfigError(`${path}["${bssid}"] must be a non-empty string`);
+    }
+    result[bssid.toLowerCase()] = name.trim();
+  }
+  return Object.freeze(result);
 }
 
 export function validateServerConfig(raw: unknown): ServerConfig {
@@ -120,6 +150,7 @@ export function validateServerConfig(raw: unknown): ServerConfig {
     db: Object.freeze({
       path: requireString(db['path'], 'db.path'),
     }),
+    apNames: parseApNames(raw['apNames'], 'apNames'),
   });
 }
 

@@ -23,6 +23,7 @@ export interface LatencyDto {
   readonly sampleCount: number;
   readonly medianMs: number | null;
   readonly p95Ms: number | null;
+  readonly p98Ms: number | null;
   readonly minMs: number | null;
   readonly maxMs: number | null;
 }
@@ -59,6 +60,12 @@ export interface WifiSampleDto {
   readonly reason: string | null;
 }
 
+/** A {@link WifiSampleDto} as returned in a day-detail response, with the BSSID resolved against config `apNames`. */
+export interface WifiSampleWithApNameDto extends WifiSampleDto {
+  /** User-configured friendly name for `bssid` (config `apNames`). Null when unnamed, or `bssid` is null. */
+  readonly apName: string | null;
+}
+
 /** POST /api/ingest body, sent by a survey probe (or any remote device). */
 export interface IngestRequest {
   readonly deviceId: string;
@@ -83,14 +90,19 @@ export interface RoomSummaryDto {
   /** Most recent AP this room was seen connected to. Null when no Wi-Fi association has ever been recorded here. */
   readonly latestBssid: string | null;
   readonly latestSsid: string | null;
+  /** User-configured friendly name for `latestBssid` (config `apNames`). Null when unnamed or no AP recorded. */
+  readonly latestApName: string | null;
   readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
   /** Wi-Fi channel number for `band`. Null whenever `band` is null, or for the rare 5925-5954 MHz guard range that has no channel 1-233 mapping. */
   readonly channel: number | null;
   readonly signalDbm: number | null;
+  /** p98 round-trip latency for this room's most recent full day (or live window, for the backbone). Null when no successful ping has been recorded yet. */
+  readonly latencyP98Ms: number | null;
   /** Every distinct AP this room has ever connected to (current and historical), most recent first. */
   readonly seenAps: readonly {
     readonly bssid: string;
     readonly ssid: string | null;
+    readonly apName: string | null;
     readonly band: '2.4 GHz' | '5 GHz' | '6 GHz' | null;
     readonly lastSeenAt: string;
   }[];
@@ -135,5 +147,5 @@ export interface RoomDayDetailDocument {
     readonly lossRatio: number | null;
     readonly latency: LatencyDto;
   };
-  readonly wifiSamples: readonly WifiSampleDto[];
+  readonly wifiSamples: readonly WifiSampleWithApNameDto[];
 }

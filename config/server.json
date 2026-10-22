@@ -21,5 +21,6 @@
   },
   "db": {
     "path": "./data/central.sqlite"
-  }
+  },
+  "apNames": {}
 }

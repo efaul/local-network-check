@@ -25,6 +25,22 @@ test('latency statistics ignore timeouts and errors', () => {
   assert.equal(summary.latency.medianMs, 15);
 });
 
+test('p98 is always at or above p95 and null exactly when p95 is null', () => {
+  const rtts = [10, 12, 15, 20, 22, 30, 45, 50, 70, 100];
+  const summary = summarise(rtts.map((r) => ok(r)));
+  assert.equal(summary.latency.p95Ms, 100);
+  assert.equal(summary.latency.p98Ms, 100);
+  assert.ok((summary.latency.p98Ms ?? 0) >= (summary.latency.p95Ms ?? 0));
+
+  const single = summarise([ok(42)]);
+  assert.equal(single.latency.p95Ms, 42);
+  assert.equal(single.latency.p98Ms, 42);
+
+  const none = summarise([timeout(), error()]);
+  assert.equal(none.latency.p95Ms, null);
+  assert.equal(none.latency.p98Ms, null);
+});
+
 test('probe errors are excluded from the loss ratio', () => {
   assert.equal(summarise([ok(10), ok(12), error()]).lossRatio, 0);
 });

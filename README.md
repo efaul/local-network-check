@@ -45,13 +45,19 @@ Configure it in `config/server.json`:
   "probe": { "intervalMs": 5000, "timeoutMs": 1000 },
   "window": { "minutes": 15 },
   "server": { "host": "0.0.0.0", "port": 8787 },
-  "db": { "path": "./data/central.sqlite" }
+  "db": { "path": "./data/central.sqlite" },
+  "apNames": { "aa:bb:cc:dd:ee:ff": "Living Room Mesh" }
 }
 ```
 
 `probe.timeoutMs` must be smaller than `probe.intervalMs`. The dashboard is
 at `http://<host>:<port>/`, with `#/backbone` (the continuous reference) and
 `#/rooms` (the survey heatmap) as the two views.
+
+`apNames` is optional (omit it, or leave it `{}`, for no names). Keys are
+BSSIDs in `aa:bb:cc:dd:ee:ff` form (case-insensitive); values are the name
+shown everywhere that AP's BSSID would otherwise appear. Unnamed APs keep
+showing their SSID/BSSID exactly as before.
 
 Run as a `systemd` service for unattended operation; it survives restarts
 since history is in SQLite, not memory.

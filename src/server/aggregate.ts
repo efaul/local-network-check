@@ -21,6 +21,7 @@ import type { Db } from './db.ts';
 import { summarise, summariseByHour, deriveStatus, deriveBucketStatus } from '../shared/summary.ts';
 import { localDateOf } from '../shared/timezone.ts';
 import { bandOf, channelOf } from '../shared/band.ts';
+import { resolveApName } from '../shared/apNames.ts';
 import type {
   HourBucketDto,
   RoomDayDetailDocument,
@@ -34,6 +35,7 @@ export interface GetRoomsListOptions {
   backboneLocation: string;
   windowMs: number;
   intervalMs: number;
+  apNames: Readonly<Record<string, string>>;
 }
 
 export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryDto[] {
@@ -42,15 +44,18 @@ export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryD
   return locations.map((location) => {
     const isBackbone = location === options.backboneLocation;
     const latestWifi = lastConnectedWifiSampleForLocation(db, location);
+    const latestBssid = latestWifi?.bssid ?? null;
     const wifiFields = {
-      latestBssid: latestWifi?.bssid ?? null,
+      latestBssid,
       latestSsid: latestWifi?.ssid ?? null,
+      latestApName: resolveApName(options.apNames, latestBssid),
       band: bandOf(latestWifi?.freqMhz ?? null),
       channel: channelOf(latestWifi?.freqMhz ?? null),
       signalDbm: latestWifi?.signalDbm ?? null,
       seenAps: distinctConnectedApsForLocation(db, location).map((ap) => ({
         bssid: ap.bssid,
         ssid: ap.ssid,
+        apName: resolveApName(options.apNames, ap.bssid),
         band: bandOf(ap.freqMhz),
         lastSeenAt: ap.lastSeenAt,
       })),
@@ -70,6 +75,7 @@ export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryD
         statusReason: reason,
         lastSeenAt: last?.at ?? null,
         isBackbone: true,
+        latencyP98Ms: summary.latency.p98Ms,
         ...wifiFields,
       };
     }
@@ -87,6 +93,7 @@ export function getRoomsList(db: Db, options: GetRoomsListOptions): RoomSummaryD
       statusReason: reason,
       lastSeenAt: last?.at ?? null,
       isBackbone: false,
+      latencyP98Ms: summary.latency.p98Ms,
       ...wifiFields,
     };
   });
@@ -112,9 +119,18 @@ export function getDaysForLocation(db: Db, location: string): RoomDaysDocument {
   return { location, dates: datesForLocation(db, location) };
 }
 
-export function getDayDetail(db: Db, location: string, date: string): RoomDayDetailDocument {
+export function getDayDetail(
+  db: Db,
+  location: string,
+  date: string,
+  apNames: Readonly<Record<string, string>>,
+): RoomDayDetailDocument {
   const samples = samplesForLocationAndDate(db, location, date);
-  const wifiSamples = wifiSamplesForLocationAndDate(db, location, date);
+  const rawWifiSamples = wifiSamplesForLocationAndDate(db, location, date);
+  const wifiSamples = rawWifiSamples.map((sample) => ({
+    ...sample,
+    apName: resolveApName(apNames, sample.bssid),
+  }));
   const summary = summarise(samples);
   const { status, reason } = deriveBucketStatus(summary);
 

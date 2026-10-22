@@ -18,6 +18,7 @@ export interface LatencySummary {
   readonly sampleCount: number;
   readonly medianMs: number | null;
   readonly p95Ms: number | null;
+  readonly p98Ms: number | null;
   readonly minMs: number | null;
   readonly maxMs: number | null;
 }
@@ -89,6 +90,7 @@ export function summarise(results: readonly Result[] = []): Summary {
       sampleCount: rtts.length,
       medianMs: median(rtts),
       p95Ms: percentile(rtts, 0.95),
+      p98Ms: percentile(rtts, 0.98),
       minMs: rtts.length > 0 ? Math.min(...rtts) : null,
       maxMs: rtts.length > 0 ? Math.max(...rtts) : null,
     },

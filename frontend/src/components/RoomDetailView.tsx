@@ -104,15 +104,18 @@ export function RoomDetailView({ location }: { location: string }) {
 
   const pointChips = useMemo(() => {
     if (dayDoc === null) return [];
-    const points = new Map<string, { ssid: string | null; freqMhz: number | null }>();
+    const points = new Map<string, { ssid: string | null; apName: string | null; freqMhz: number | null }>();
     for (const sample of dayDoc.wifiSamples) {
-      if (sample.connected && sample.bssid !== null) points.set(sample.bssid, { ssid: sample.ssid, freqMhz: sample.freqMhz });
+      if (sample.connected && sample.bssid !== null) {
+        points.set(sample.bssid, { ssid: sample.ssid, apName: sample.apName, freqMhz: sample.freqMhz });
+      }
     }
     return [...points.entries()].map(([bssid, info]) => {
       const band = bandOf(info.freqMhz);
-      const label = [info.ssid ?? bssid, `(${bssid})`, band !== null ? `· ${band}` : null]
-        .filter((part) => part !== null)
-        .join(' ');
+      const label =
+        info.apName !== null
+          ? [info.apName, band !== null ? `· ${band}` : null].filter((part) => part !== null).join(' ')
+          : [info.ssid ?? bssid, `(${bssid})`, band !== null ? `· ${band}` : null].filter((part) => part !== null).join(' ');
       return { bssid, label };
     });
   }, [dayDoc]);
@@ -188,6 +191,10 @@ export function RoomDetailView({ location }: { location: string }) {
                   <div>
                     <dt>p95</dt>
                     <dd>{ms(dayDoc.summary.latency.p95Ms)}</dd>
+                  </div>
+                  <div>
+                    <dt>p98</dt>
+                    <dd>{ms(dayDoc.summary.latency.p98Ms)}</dd>
                   </div>
                   <div>
                     <dt>No reply</dt>
