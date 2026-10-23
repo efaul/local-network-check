@@ -49,6 +49,49 @@ export function dateTimeOf(iso: string | null): string {
   return `${datePart}, ${timePart}`;
 }
 
+export type Freshness = 'fresh' | 'stale' | 'very-stale' | 'unknown';
+
+/** YYYY-MM-DD for an instant, in {@link DISPLAY_TIMEZONE}. */
+function localDateOf(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: DISPLAY_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+/**
+ * How stale a room's most recent sample is, in whole calendar days
+ * ({@link DISPLAY_TIMEZONE}) rather than elapsed hours - a sample from 23:00
+ * yesterday reads as a day old all through today instead of ageing out of
+ * "today" partway through the morning.
+ */
+export function freshnessOf(lastSeenAt: string | null, now: Date = new Date()): Freshness {
+  if (lastSeenAt === null) return 'unknown';
+  const parsed = Date.parse(lastSeenAt);
+  if (Number.isNaN(parsed)) return 'unknown';
+
+  const lastDay = Date.parse(`${localDateOf(new Date(parsed))}T00:00:00.000Z`);
+  const today = Date.parse(`${localDateOf(now)}T00:00:00.000Z`);
+  const daysOld = Math.round((today - lastDay) / 86_400_000);
+
+  if (daysOld <= 0) return 'fresh';
+  if (daysOld === 1) return 'stale';
+  return 'very-stale';
+}
+
+const FRESHNESS_TITLE: Record<Freshness, string> = {
+  fresh: 'Data freshness: up to date (sampled today)',
+  stale: 'Data freshness: stale (last sampled yesterday)',
+  'very-stale': 'Data freshness: very stale (last sampled 2+ days ago)',
+  unknown: 'Data freshness: no samples yet',
+};
+
+export function freshnessTitle(freshness: Freshness): string {
+  return FRESHNESS_TITLE[freshness];
+}
+
 /**
  * "ssid(identifier)" where identifier is the configured friendly name (config
  * `apNames`) when one exists, otherwise the raw BSSID - same shape either

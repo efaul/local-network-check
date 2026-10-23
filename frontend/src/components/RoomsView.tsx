@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import type { RoomSummaryDto } from '../types';
-import { dateTimeOf, timeAgoFromIso, ms, networkLabel } from '../format';
+import { dateTimeOf, timeAgoFromIso, ms, networkLabel, freshnessOf, freshnessTitle } from '../format';
 import { signalQuality } from '../signal';
 import { roomLink } from '../router';
 import { StatusBadge } from './StatusBadge';
@@ -37,6 +37,16 @@ function SignalCell({ room }: { room: RoomSummaryDto }) {
     <span>
       <span className={`key key-${signalQuality(room.signalDbm)}`} /> {room.signalDbm.toFixed(0)} dBm
     </span>
+  );
+}
+
+function LastSampleCell({ room }: { room: RoomSummaryDto }) {
+  const freshness = freshnessOf(room.lastSeenAt);
+  return (
+    <td className="muted" title={dateTimeOf(room.lastSeenAt)}>
+      <span className="freshness-dot" data-freshness={freshness} title={freshnessTitle(freshness)} aria-hidden="true" />
+      {timeAgoFromIso(room.lastSeenAt)}
+    </td>
   );
 }
 
@@ -109,9 +119,7 @@ export function RoomsView() {
                   <SignalCell room={room} />
                 </td>
                 <td className="muted">{ms(room.latencyP98Ms)}</td>
-                <td className="muted" title={dateTimeOf(room.lastSeenAt)}>
-                  {timeAgoFromIso(room.lastSeenAt)}
-                </td>
+                <LastSampleCell room={room} />
               </tr>
             ))}
           </tbody>

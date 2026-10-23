@@ -375,6 +375,21 @@ dd { margin: 5px 0 0; font-size: 19px; font-weight: 600; font-variant-numeric: t
 
 .room-matrix .key { margin-right: 2px; }
 
+.freshness-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: var(--unknown);
+  box-shadow: 0 0 0 1px var(--panel);
+}
+
+.freshness-dot[data-freshness='fresh'] { background: var(--ok); }
+.freshness-dot[data-freshness='stale'] { background: var(--warn); }
+.freshness-dot[data-freshness='very-stale'] { background: var(--bad); }
+
 /* ------------------------------------------------------------------- hour */
 
 .hour-grid { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }
